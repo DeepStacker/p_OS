@@ -24,6 +24,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const isMockAuth = !import.meta.env.VITE_FIREBASE_API_KEY;
+    
+    if (isMockAuth) {
+      console.log("Auth System: Development mode active (No Firebase detected).");
+      const savedUser = localStorage.getItem("demo_user");
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setUser(user);
       setLoading(false);
@@ -33,6 +45,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signInWithGoogle = async () => {
+    const isMockAuth = !import.meta.env.VITE_FIREBASE_API_KEY;
+
+    if (isMockAuth) {
+        const mockUser = {
+            uid: "demo-user-123",
+            displayName: "Demo User",
+            email: "admin@system.node",
+            photoURL: "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix",
+        } as User;
+        setUser(mockUser);
+        localStorage.setItem("demo_user", JSON.stringify(mockUser));
+        toast.success("Signed in with demo account.");
+        return;
+    }
+
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
@@ -54,6 +81,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
+    const isMockAuth = !import.meta.env.VITE_FIREBASE_API_KEY;
+
+    if (isMockAuth) {
+        setUser(null);
+        localStorage.removeItem("demo_user");
+        toast.info("Logged out of demo account.");
+        return;
+    }
+
     try {
       await firebaseSignOut(auth);
     } catch (error) {

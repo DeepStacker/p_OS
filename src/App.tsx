@@ -8,12 +8,15 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
-import ProposalGenerator from "./pages/ProposalGenerator";
-import PortfolioGenerator from "./pages/PortfolioGenerator";
-import AdminDashboard from "./pages/AdminDashboard";
-import JobRadar from "./pages/JobRadar";
-import Subscription from "./pages/Subscription";
+import Proposals from "./pages/Proposals";
+import Portfolio from "./pages/Portfolio";
+import Admin from "./pages/Admin";
+import Jobs from "./pages/Jobs";
+import Pricing from "./pages/Pricing";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+
+import MacOSLayout from "./components/MacOSLayout";
 
 const queryClient = new QueryClient();
 
@@ -24,17 +27,20 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/proposal" element={<ProtectedRoute><ProposalGenerator /></ProtectedRoute>} />
-            <Route path="/portfolio" element={<ProtectedRoute><PortfolioGenerator /></ProtectedRoute>} />
-            <Route path="/jobs" element={<ProtectedRoute><JobRadar /></ProtectedRoute>} />
-            <Route path="/pricing" element={<ProtectedRoute><Subscription /></ProtectedRoute>} />
-            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <MacOSLayout>
+            <Routes>
+              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/welcome" element={<Index />} />
+              <Route path="/proposals" element={<ProtectedRoute><Proposals /></ProtectedRoute>} />
+              <Route path="/portfolio" element={<ProtectedRoute><Portfolio /></ProtectedRoute>} />
+              <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
+              <Route path="/pricing" element={<ProtectedRoute><Pricing /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </MacOSLayout>
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>

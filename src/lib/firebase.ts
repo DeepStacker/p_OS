@@ -12,7 +12,22 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-const app = initializeApp(firebaseConfig);
+// Simulation Mode Guard
+const hasFirebaseKeys = !!firebaseConfig.apiKey;
+
+let app;
+try {
+    if (hasFirebaseKeys) {
+        app = initializeApp(firebaseConfig);
+    } else {
+        console.warn("Firebase: Configuration keys missing. Using development mode.");
+        app = initializeApp({ apiKey: "dev-key", projectId: "node-system-dev" });
+    }
+} catch (err) {
+    console.error("Firebase Initialization Failure:", err);
+    app = initializeApp({ apiKey: "err-key", projectId: "node-system-err" });
+}
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();

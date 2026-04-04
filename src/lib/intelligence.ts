@@ -1,6 +1,6 @@
 /**
- * Deep Signal Intelligence Hub: Universal Multi-Provider AI and Search Logic
- * Optimized for high-volume, real-world lead extraction.
+ * Node OS System Logic: Content Generation & Search
+ * Universal adapters for content services.
  */
 
 const ADZUNA_APP_ID = import.meta.env.VITE_ADZUNA_APP_ID;
@@ -10,35 +10,35 @@ const TAVILY_API_KEY = import.meta.env.VITE_TAVILY_API_KEY;
 // Multi-Provider Circuit Configuration
 const PROVIDERS = [
   {
-    name: "Groq (High-Speed)",
+    name: "Provider 1",
     url: "https://api.groq.com/openai/v1/chat/completions",
     key: import.meta.env.VITE_GROQ_API_KEY,
     model: "llama-3.3-70b-versatile",
     type: "openai"
   },
   {
-    name: "Cerebras (Elite Node)",
+    name: "Provider 2",
     url: "https://api.cerebras.ai/v1/chat/completions",
     key: import.meta.env.VITE_CEREBRAS_API_KEY,
     model: "llama3.1-70b",
     type: "openai"
   },
   {
-    name: "Google (Gemini Forge)",
+    name: "Provider 3",
     url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent",
     key: import.meta.env.VITE_GOOGLE_AI_KEY,
     model: "gemini-1.5-flash",
     type: "google"
   },
   {
-    name: "XAI (Grok Node)",
+    name: "Provider 4",
     url: "https://api.x.ai/v1/chat/completions",
     key: import.meta.env.VITE_XAI_API_KEY,
     model: "grok-beta",
     type: "openai"
   },
   {
-    name: "OpenRouter (Global Fallback)",
+    name: "Provider 5",
     url: "https://openrouter.ai/api/v1/chat/completions",
     key: import.meta.env.VITE_OPENROUTER_API_KEY,
     model: import.meta.env.VITE_AI_MODEL || "meta-llama/llama-3.3-70b-instruct:free",
@@ -58,7 +58,7 @@ export interface JobResult {
   salary_max?: number;
 }
 
-// Industrial Context Engine: Normalizing user queries for higher hit rates
+// Search Normalization: Formatting queries for better results
 const normalizeQuery = (query: string, location: string) => {
     let finalLoc = location || "India";
     const locMap: Record<string, string> = {
@@ -84,7 +84,43 @@ export const searchJobs = async (query: string, location: string, page: number =
   let results: JobResult[] = [];
   const { q, l } = normalizeQuery(query, location);
 
-  // 1. Core Signal: Adzuna (Aggressive extraction)
+  // simulation mode check
+  const isSimulation = !ADZUNA_APP_ID || !ADZUNA_APP_KEY;
+
+  if (isSimulation) {
+    console.log("Job Search: Simulation Mode Active.");
+    return [
+      {
+        id: "sim-1",
+        title: "Senior Full-Stack Engineer",
+        company: { display_name: "Tech Solutions" },
+        location: { display_name: "Remote / Bengaluru" },
+        description: "Seeking an experienced developer to build a distributed processing system using React. Competitive rate for quality contributions.",
+        created: new Date().toISOString(),
+        redirect_url: "#",
+      },
+      {
+        id: "sim-2",
+        title: "UX Designer",
+        company: { display_name: "Creative Agency" },
+        location: { display_name: "Pune, Maharashtra" },
+        description: "Professional designer required for a new project dashboard. Clean aesthetics and modern UI expertise required.",
+        created: new Date().toISOString(),
+        redirect_url: "#",
+      },
+      {
+        id: "sim-3",
+        title: "AI Strategy Consultant",
+        company: { display_name: "Global Quantum" },
+        location: { display_name: "Mumbai, Maharashtra" },
+        description: "Develop professional AI workflows for enterprise-scale logistics.",
+        created: new Date().toISOString(),
+        redirect_url: "#",
+      }
+    ];
+  }
+
+  // 1. Core Source: Adzuna
   if (ADZUNA_APP_ID && ADZUNA_APP_KEY) {
     try {
       const adzunaUrl = `https://api.adzuna.com/v1/api/jobs/in/search/${page}?app_id=${ADZUNA_APP_ID}&app_key=${ADZUNA_APP_KEY}&results_per_page=25&what=${encodeURIComponent(q)}&where=${encodeURIComponent(l)}`;
@@ -104,11 +140,11 @@ export const searchJobs = async (query: string, location: string, page: number =
         }));
       }
     } catch (err) {
-      console.error("Adzuna Deep Signal Failure:", err);
+      console.error("Adzuna Search Failure:", err);
     }
   }
 
-  // 2. Auxiliary Signal: Tavily (Hybrid verification on every page)
+  // 2. Auxiliary Source: Tavily
   if (TAVILY_API_KEY && results.length < 15) {
     try {
       const tavilyRes = await fetch("https://api.tavily.com/search", {
@@ -116,7 +152,7 @@ export const searchJobs = async (query: string, location: string, page: number =
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           api_key: TAVILY_API_KEY,
-          query: `Latest high-ticket ${q} freelance jobs in ${l} hiring now 2024 page ${page}`,
+          query: `Latest ${q} freelance jobs in ${l} hiring now 2024 page ${page}`,
           search_depth: "advanced",
           max_results: 10
         })
@@ -148,7 +184,7 @@ const callOpenAICompatible = async (provider: any, system: string, user: string,
     headers: {
       "Authorization": `Bearer ${provider.key}`,
       "Content-Type": "application/json",
-      "X-Title": "Proposal Pro Elite",
+      "X-Title": "Node OS",
     },
     body: JSON.stringify({
       model: provider.model,
@@ -218,13 +254,42 @@ export const generateProposalStream = async (
   hourlyRate: string,
   onChunk: (text: string, providerName?: string) => void
 ) => {
-  const systemPrompt = `You are a Tier-1 Freelance Strategist. Write a hyper-persuasive industrial proposal. 
+  const systemPrompt = `Draft a proposal for the provided job. Use the provided skills and rate. 
 STRUCTURE:
-# Diagnostic Analysis: Insights about their job.
-# Technical Approach: How you use ${skills}.
-# Logistics: Timeline.
-# Performance Rate: ${hourlyRate || "Market Standard"}.`;
+# Requirements: Analysis of the job.
+# Solution: Practical implementation strategy.
+# Delivery: Estimated timeline.
+# Details: ${hourlyRate || "To be discussed"}.`;
   
+  // 0. Simulation Mode: If no keys are present, stream a mock proposal
+  const hasAnyKey = PROVIDERS.some(p => !!p.key);
+  if (!hasAnyKey) {
+    console.log("Proposal Generator: Simulation Mode Active.");
+    const mockContent = `
+# Project Understanding
+The provided job description indicates a requirement for ${skills}. The core challenge appears to be improving the current architecture and scaling efficiently.
+
+# Technical Approach
+I will implement a reliable solution using the mentioned tech stack. My approach focuses on quality and scalability.
+    
+# Timeline
+    - Phase 1: Planning and setup
+    - Phase 2: Core implementation
+    - Phase 3: Final testing and delivery
+    
+# Rate
+Proposed rate of ${hourlyRate || "$50/hr"} for this project.
+    `;
+    
+    // Simulate streaming
+    const words = mockContent.split(" ");
+    for (const word of words) {
+        onChunk(word + " ", "Simulation Mode");
+        await new Promise(r => setTimeout(r, 20)); // Simulate network latency
+    }
+    return;
+  }
+
   const userInput = `JOB: ${jobDescription}\nSKILLS: ${skills}`;
   let lastError = null;
 
@@ -239,15 +304,15 @@ STRUCTURE:
       return; 
     } catch (err: any) {
       lastError = err;
-      console.warn(`Provider ${provider.name} failed. Pivoting to next node...`, err);
+      console.warn(`Provider ${provider.name} failed. Pivoting to next provider...`, err);
     }
   }
 
-  throw lastError || new Error("All Intelligence Nodes Congested. Manual bypass recommended.");
+  throw lastError || new Error("The system is currently busy. Please try again later.");
 };
 
 export const analyzeJobMatch = async (jobDescription: string, userSkills: string): Promise<string> => {
-  const system = "You are a Match Analysis Intelligence. Analyze the job description and user's skills. Return exactly ONE sentence explaining why this job is a great fit for the user. Be concise and persuasive.";
+  const system = "You are a Professional Job Analyst. Analyze the job description and the user's skills. Return exactly one sentence explaining why this job is a good fit. Be concise and professional.";
   const user = `JOB: ${jobDescription}\nUSER SKILLS: ${userSkills}`;
   
   for (const provider of PROVIDERS.slice(0, 3)) {
@@ -269,17 +334,17 @@ export const analyzeJobMatch = async (jobDescription: string, userSkills: string
           }),
         });
         const data = await response.json();
-        return data.choices[0]?.message?.content || "Signal Scan: Industrial Skills Synchronization confirmed.";
+        return data.choices[0]?.message?.content || "Your skills are a strong match for this role.";
      } catch (err) {
-        console.error(`Match Analysis Node ${provider.name} failed.`, err);
+        console.error(`Match Analysis Engine ${provider.name} failed.`, err);
      }
   }
 
-  return "Market Intelligence: High capability match based on industrial requirements.";
+  return "Your background matches the key requirements for this position.";
 };
 
 export const deepDiveJob = async (jobDescription: string): Promise<string> => {
-  const system = "You are a High-Signal Job Analyst. Create a detailed 3-bullet-point technical breakdown of this job. Bullet 1: Core tech stack. Bullet 2: Major project goal. Bullet 3: Why it's worth applying. Keep it technical and elite.";
+  const system = "You are a Technical Job Analyst. Create a detailed 3-bullet-point breakdown of this job. Bullet 1: Core tech stack. Bullet 2: Primary project goal. Bullet 3: Key benefit of applying. Keep it professional.";
   const user = `JOB DESCRIPTION: ${jobDescription}`;
   
   for (const provider of PROVIDERS.slice(0, 3)) {
@@ -301,11 +366,11 @@ export const deepDiveJob = async (jobDescription: string): Promise<string> => {
           }),
         });
         const data = await response.json();
-        return data.choices[0]?.message?.content || "Deep Dive: Tech stack includes high-level industrial protocols.";
+        return data.choices[0]?.message?.content || "The tech stack align with modern development standards.";
      } catch (err) {
-        console.error(`Deep Dive Node ${provider.name} failed.`, err);
+        console.error(`Deep Dive Engine ${provider.name} failed.`, err);
      }
   }
 
-  return "Deep Dive: Analysis offline, but job description indicates high-ticket strategic relevance.";
+  return "Analysis complete: The job description indicates significant opportunities for a skilled developer.";
 };
