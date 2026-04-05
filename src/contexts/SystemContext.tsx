@@ -13,6 +13,7 @@ import {
   Globe,
   Music as MusicIcon,
   PlayCircle,
+  Package,
   LucideIcon
 } from "lucide-react";
 
@@ -196,6 +197,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     { id: "clock", name: "Clock", icon: AppWindow, component: "clock", category: "productivity" },
     { id: "notes", name: "Notes", icon: FileText, component: "notes", category: "productivity" },
     { id: "billing", name: "Billing", icon: CreditCard, component: "billing", category: "pro" },
+    { id: "appstore", name: "App Store", icon: Package, component: "appstore", category: "web" },
     { id: "settings", name: "Settings", icon: SettingsIcon, component: "settings", category: "system" },
   ];
 

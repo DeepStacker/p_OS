@@ -64,6 +64,7 @@ const Finder = lazy(() => import("@/components/apps/Finder"));
 const MusicCap = lazy(() => import("@/components/apps/Music"));
 const VideoCap = lazy(() => import("@/components/apps/VideoPlayer"));
 const NavigatorCap = lazy(() => import("@/components/apps/Navigator"));
+const AppStore = lazy(() => import("@/components/apps/AppStore"));
 
 const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
@@ -228,6 +229,7 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       case "music": return <MusicCap />;
       case "video": return <VideoCap />;
       case "navigator": return <NavigatorCap />;
+      case "appstore": return <AppStore />;
       default: return <div className="p-20 text-center opacity-20 text-white">Hardware Registry Not Found</div>;
     }
   };
@@ -335,7 +337,7 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 <button onClick={() => { triggerPowerAction("shutdown"); setShowAppleMenu(false); }} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Shut Down...</button>
                 <div className="h-px bg-white/5 my-1" />
                 <button onClick={() => { setPowerStatus("locked"); setShowAppleMenu(false); }} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Lock Screen</button>
-                <button onClick={() => { signOut(); setShowAppleMenu(false); navigate("/auth"); }} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Log Out node...</button>
+                <button onClick={async () => { await signOut(); setShowAppleMenu(false); navigate("/auth"); }} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Log Out node...</button>
               </motion.div>
             )}
           </AnimatePresence>
