@@ -167,25 +167,142 @@ const Settings = () => {
                 )}
 
                 {activeTab === "desktop" && (
-                   <div className="max-w-2xl space-y-12">
-                      <h2 className="text-3xl font-black text-white/90 tracking-tighter">Desktop Wallpaper</h2>
-                      <div className="grid grid-cols-2 gap-6">
-                         {wallpapers.map(wp => (
-                            <button 
-                               key={wp.name} 
-                               onClick={() => { setWallpaper(wp.url); addLog(`Wallpaper updated: ${wp.name}`); }}
-                               className={cn(
-                                  "group relative aspect-video rounded-[24px] overflow-hidden border-2 transition-all hover:scale-[1.02] active:scale-[0.98]",
-                                  wallpaper === wp.url ? "border-primary shadow-[0_0_30px_rgba(var(--primary),0.2)]" : "border-white/5"
-                               )}
-                            >
-                               <img src={wp.url} alt={wp.name} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
-                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-4">
-                                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/80">{wp.name}</span>
+                   <div className="max-w-2xl space-y-12 pb-20">
+                      <div className="flex items-center justify-between">
+                         <h2 className="text-3xl font-black text-white/90 tracking-tighter">Wallpaper Studio</h2>
+                         <div className="px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-[8px] font-black text-primary tracking-widest uppercase">Node_VFS_Sync</div>
+                      </div>
+
+                      {/* Custom Ingestion Engine */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                         <div className="p-8 rounded-[32px] bg-white/5 border border-white/10 space-y-6 shadow-2xl relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="flex items-center gap-4 relative z-10">
+                               <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20">
+                                  <ImageIcon className="h-6 w-6 text-primary" />
                                </div>
-                               {wallpaper === wp.url && <div className="absolute top-3 right-3 h-6 w-6 rounded-full bg-primary flex items-center justify-center shadow-lg"><Check className="h-3 w-3 text-white" /></div>}
-                            </button>
-                         ))}
+                               <div className="flex flex-col">
+                                  <span className="text-[11px] font-black text-white uppercase tracking-tight">Offline Ingestion</span>
+                                  <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Local File Sync</span>
+                               </div>
+                            </div>
+                            <label className="block w-full cursor-pointer relative z-10">
+                               <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  className="hidden" 
+                                  onChange={(e) => {
+                                     const file = e.target.files?.[0];
+                                     if (file) {
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => {
+                                           const base64 = reader.result as string;
+                                           setWallpaper(base64);
+                                           addLog(`Wallpaper ingested: ${file.name}`, "success");
+                                        };
+                                        reader.readAsDataURL(file);
+                                     }
+                                  }}
+                               />
+                               <div className="w-full py-4 rounded-2xl bg-white/5 border border-dashed border-white/20 hover:border-primary/40 hover:bg-white/10 transition-all flex items-center justify-center gap-3">
+                                  <Database className="h-4 w-4 text-zinc-600" />
+                                  <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Select Node Image</span>
+                               </div>
+                            </label>
+                         </div>
+
+                         <div className="p-8 rounded-[32px] bg-white/5 border border-white/10 space-y-6 shadow-2xl relative overflow-hidden group">
+                            <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="flex items-center gap-4 relative z-10">
+                               <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-500">
+                                  <Globe className="h-6 w-6" />
+                               </div>
+                               <div className="flex flex-col">
+                                  <span className="text-[11px] font-black text-white uppercase tracking-tight">Remote Synthesis</span>
+                                  <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">Global URL Feed</span>
+                               </div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-black/20 p-3 rounded-2xl border border-white/5 relative z-10">
+                               <input 
+                                  type="text"
+                                  placeholder="HTTPS://SOURCE.URL"
+                                  className="bg-transparent border-none w-full text-[10px] font-black text-white tracking-widest focus:outline-none placeholder:opacity-20"
+                                  onKeyDown={(e) => {
+                                     if (e.key === 'Enter') {
+                                        const url = (e.target as HTMLInputElement).value;
+                                        if (url.startsWith('http')) {
+                                           setWallpaper(url);
+                                           addLog("Remote wallpaper synchronized", "success");
+                                           (e.target as HTMLInputElement).value = "";
+                                        }
+                                     }
+                                  }}
+                               />
+                               <Zap className="h-4 w-4 text-emerald-500 opacity-40" />
+                            </div>
+                         </div>
+                      </div>
+
+                      {/* Live Motion Engine */}
+                      <div className="space-y-6">
+                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary ml-1">Universal Live Motion Hub</p>
+                         <div className="grid grid-cols-3 gap-6">
+                            {[
+                               { id: "live:celestial", name: "Celestial Flow", desc: "Fluid Mesh Gradients", color: "from-blue-500/20 to-purple-500/20" },
+                               { id: "live:matrix", name: "Matrix Node", desc: "Char-Stream Incursion", color: "from-emerald-950 to-black" },
+                               { id: "live:cyber", name: "Cyber Grid", desc: "Perspective Sync", color: "from-zinc-900 to-primary/10" }
+                            ].map(live => (
+                               <button 
+                                  key={live.id}
+                                  onClick={() => { setWallpaper(live.id); addLog(`Live sequence initiated: ${live.name}`, "info"); }}
+                                  className={cn(
+                                     "group relative aspect-[3/4] rounded-[32px] border-2 transition-all overflow-hidden flex flex-col items-center justify-center text-center gap-4 p-6",
+                                     wallpaper === live.id ? "border-primary shadow-[0_0_40px_rgba(var(--primary),0.2)] bg-primary/5" : "border-white/5 bg-white/[0.02] hover:bg-white/5"
+                                  )}
+                               >
+                                  <div className={cn("w-20 h-20 rounded-[24px] flex items-center justify-center bg-gradient-to-br border border-white/10 shadow-2xl transition-transform group-hover:scale-110 duration-700", live.color)}>
+                                     <Zap className={cn("h-8 w-8 text-white/40 group-hover:text-primary transition-colors", wallpaper === live.id && "text-primary")} />
+                                  </div>
+                                  <div className="space-y-1">
+                                     <span className="text-[10px] font-black text-white uppercase tracking-tight block">{live.name}</span>
+                                     <span className="text-[8px] font-bold text-zinc-600 uppercase tracking-widest block">{live.desc}</span>
+                                  </div>
+                                  {wallpaper === live.id && (
+                                     <motion.div layoutId="live-active" className="absolute inset-0 border-2 border-primary rounded-[32px] pointer-events-none" />
+                                  )}
+                               </button>
+                            ))}
+                         </div>
+                      </div>
+
+                      {/* Default Registry */}
+                      <div className="space-y-6">
+                         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 ml-1">Legacy High-Fidelity Registry</p>
+                         <div className="grid grid-cols-2 gap-6">
+                            {wallpapers.map(wp => (
+                               <button 
+                                  key={wp.name} 
+                                  onClick={() => { setWallpaper(wp.url); addLog(`Wallpaper updated: ${wp.name}`); }}
+                                  className={cn(
+                                     "group relative aspect-video rounded-[32px] overflow-hidden border-2 transition-all hover:scale-[1.02] active:scale-[0.98]",
+                                     wallpaper === wp.url ? "border-primary shadow-[0_0_40px_rgba(var(--primary),0.3)] scale-[1.03]" : "border-white/5"
+                                  )}
+                               >
+                                  <img src={wp.url} alt={wp.name} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-700" />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-6">
+                                     <div className="flex flex-col items-start translate-y-2 group-hover:translate-y-0 transition-transform">
+                                        <span className="text-[8px] font-black text-primary uppercase tracking-[0.3em] mb-1">Stock_Node</span>
+                                        <span className="text-xs font-black uppercase tracking-[0.2em] text-white/90 italic">{wp.name}</span>
+                                     </div>
+                                  </div>
+                                  {wallpaper === wp.url && (
+                                     <div className="absolute top-4 right-4 h-8 w-8 rounded-full bg-primary flex items-center justify-center shadow-2xl border border-white/20">
+                                        <Check className="h-4 w-4 text-white" />
+                                     </div>
+                                  )}
+                               </button>
+                            ))}
+                         </div>
                       </div>
                    </div>
                 )}

@@ -10,14 +10,20 @@ import {
   AppWindow, 
   FileText, 
   Settings as SettingsIcon,
+  Globe,
+  Music as MusicIcon,
+  PlayCircle,
   LucideIcon
 } from "lucide-react";
+
+export type AppCategory = "system" | "productivity" | "media" | "web" | "pro";
 
 export interface AppConfig {
   id: string;
   name: string;
   icon: LucideIcon;
   component: string;
+  category: AppCategory;
 }
 
 type AccentColor = "blue" | "purple" | "pink" | "red" | "orange" | "yellow" | "green" | "gray";
@@ -40,6 +46,7 @@ export interface WindowState {
   y?: number;
   width?: number;
   height?: number;
+  params?: any;
 }
 
 // --- VFS Types ---
@@ -87,7 +94,7 @@ interface SystemContextType {
 
   // Window Manager
   activeWindows: WindowState[];
-  openWindow: (id: string, title: string, icon: React.ReactNode, component: string) => void;
+  openWindow: (id: string, title: string, icon: React.ReactNode, component: string, params?: any) => void;
   closeWindow: (id: string) => void;
   minimizeWindow: (id: string) => void;
   focusWindow: (id: string) => void;
@@ -108,6 +115,23 @@ interface SystemContextType {
 
   // App Registry
   dockApps: AppConfig[];
+
+  // Widget Manager
+  activeWidgets: WidgetInstance[];
+  addWidget: (type: WidgetType) => void;
+  removeWidget: (id: string) => void;
+  updateWidgetPosition: (id: string, x: number, y: number) => void;
+}
+
+export type WidgetType = "clock" | "calendar" | "metrics" | "notes" | "weather";
+
+export interface WidgetInstance {
+  id: string;
+  type: WidgetType;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
 }
 
 const SystemContext = createContext<SystemContextType | undefined>(undefined);
@@ -158,16 +182,21 @@ const initialVFS: VFSNode = {
 export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // App Registry (Define first for state initializer)
   const dockApps: AppConfig[] = [
-    { id: "finder", name: "Finder", icon: Folder, component: "finder" },
-    { id: "dashboard", name: "Dashboard", icon: LayoutDashboard, component: "dashboard" },
-    { id: "terminal", name: "Terminal", icon: Terminal, component: "terminal" },
-    { id: "search", name: "Jobs", icon: Briefcase, component: "search" },
-    { id: "portfolio", name: "Code", icon: Folder, component: "portfolio" },
-    { id: "calculator", name: "Calculator", icon: CreditCard, component: "calculator" },
-    { id: "calendar", name: "Calendar", icon: ClockIcon, component: "calendar" },
-    { id: "clock", name: "Clock", icon: AppWindow, component: "clock" },
-    { id: "notes", name: "Notes", icon: FileText, component: "notes" },
-    { id: "settings", name: "Settings", icon: SettingsIcon, component: "settings" },
+    { id: "finder", name: "Finder", icon: Folder, component: "finder", category: "system" },
+    { id: "navigator", name: "Navigator", icon: Globe, component: "navigator", category: "web" },
+    { id: "music", name: "Symphony", icon: MusicIcon, component: "music", category: "media" },
+    { id: "video", name: "Cinematic", icon: PlayCircle, component: "video", category: "media" },
+    { id: "dashboard", name: "Dashboard", icon: LayoutDashboard, component: "dashboard", category: "system" },
+    { id: "proposals", name: "Proposals", icon: AppWindow, component: "proposals", category: "pro" },
+    { id: "portfolio", name: "Portfolio", icon: Folder, component: "portfolio", category: "pro" },
+    { id: "terminal", name: "Terminal", icon: Terminal, component: "terminal", category: "system" },
+    { id: "search", name: "Jobs", icon: Briefcase, component: "search", category: "web" },
+    { id: "calculator", name: "Calculator", icon: CreditCard, component: "calculator", category: "productivity" },
+    { id: "calendar", name: "Calendar", icon: ClockIcon, component: "calendar", category: "productivity" },
+    { id: "clock", name: "Clock", icon: AppWindow, component: "clock", category: "productivity" },
+    { id: "notes", name: "Notes", icon: FileText, component: "notes", category: "productivity" },
+    { id: "billing", name: "Billing", icon: CreditCard, component: "billing", category: "pro" },
+    { id: "settings", name: "Settings", icon: SettingsIcon, component: "settings", category: "system" },
   ];
 
   // Appearance & Identity
@@ -216,6 +245,32 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [metrics, setMetrics] = useState({ cpu: 12, ram: 4.2, network: 1.2 });
   const [logs, setLogs] = useState<SystemLog[]>([]);
 
+  // Widget Manager State
+  const [activeWidgets, setActiveWidgets] = useState<WidgetInstance[]>(() => {
+    const saved = localStorage.getItem("system_widgets");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const addWidget = (type: WidgetType) => {
+    const id = `widget-${type}-${Date.now()}`;
+    const newWidget: WidgetInstance = {
+      id,
+      type,
+      x: 100 + (activeWidgets.length * 40),
+      y: 100 + (activeWidgets.length * 40)
+    };
+    setActiveWidgets(prev => [...prev, newWidget]);
+    addLog(`Widget Added: ${type}`, "success");
+  };
+
+  const removeWidget = (id: string) => {
+    setActiveWidgets(prev => prev.filter(w => w.id !== id));
+  };
+
+  const updateWidgetPosition = (id: string, x: number, y: number) => {
+    setActiveWidgets(prev => prev.map(w => w.id === id ? { ...w, x, y } : w));
+  };
+
   // --- Window Actions ---
   const focusWindow = (id: string) => {
     setActiveWindows(prev => {
@@ -226,10 +281,16 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setMaxZIndex(prev => prev + 1);
   };
 
-  const openWindow = (id: string, title: string, icon: React.ReactNode, component: string) => {
+  const openWindow = (id: string, title: string, icon: React.ReactNode, component: string, params?: any) => {
     setActiveWindows(prev => {
       const existing = prev.find(w => w.id === id);
       if (existing) {
+        // Force un-minimize and update params if provided
+        if (params) {
+            setTimeout(() => focusWindow(id), 0);
+            return prev.map(w => w.id === id ? { ...w, isMinimized: false, params, zIndex: maxZIndex + 1 } : w);
+        }
+
         // Toggle Logic: If it's already focused and not minimized, minimize it.
         const sorted = [...prev].sort((a, b) => b.zIndex - a.zIndex);
         const isFocused = sorted[0]?.id === id;
@@ -242,7 +303,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setTimeout(() => focusWindow(id), 0);
         return prev;
       }
-      return [...prev, { id, title, icon, component, isOpen: true, isMinimized: false, isMaximized: false, snapType: "none", zIndex: maxZIndex + 1 }];
+      return [...prev, { id, title, icon, component, isOpen: true, isMinimized: false, isMaximized: false, snapType: "none", zIndex: maxZIndex + 1, params }];
     });
     setMaxZIndex(prev => prev + 1);
   };
@@ -297,6 +358,10 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   // System State Persistence
+  useEffect(() => {
+    localStorage.setItem("system_widgets", JSON.stringify(activeWidgets));
+  }, [activeWidgets]);
+
   useEffect(() => {
     localStorage.setItem("system_accent", accentColor);
     localStorage.setItem("show_desktop_icons", String(showDesktopIcons));
@@ -363,7 +428,8 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activeWindows, openWindow, closeWindow, minimizeWindow, focusWindow, maximizeWindow, snapWindow, updateWindowPosition,
       vfs, updateVFS,
       metrics, logs, addLog,
-      dockApps
+      dockApps,
+      activeWidgets, addWidget, removeWidget, updateWidgetPosition
     }}>
       {children}
     </SystemContext.Provider>

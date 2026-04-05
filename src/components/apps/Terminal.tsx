@@ -1,433 +1,266 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   Terminal as TerminalIcon, 
   ChevronRight, 
+  Zap, 
   Shield, 
   Cpu, 
   Database, 
-  Activity, 
-  Clock,
-  Zap,
-  AppWindow,
+  Clock, 
+  Search, 
+  Trash2, 
+  History,
   Maximize2,
-  Lock,
-  Globe,
-  Terminal,
-  Search,
-  FileSearch,
-  HardDrive
+  Settings,
+  Circle,
+  Hash,
+  Activity,
+  User as UserIcon,
+  Globe
 } from "lucide-react";
-import { useSystem, VFSNode } from "@/contexts/SystemContext";
+import { useSystem } from "@/contexts/SystemContext";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 
-interface CommandLog {
-  type: "input" | "output" | "error" | "system" | "code";
-  content: React.ReactNode;
-}
-
-const TerminalApp = () => {
-  const { metrics, accentColor, batteryLevel, isWifiEnabled, logs: systemLogs, addLog, vfs, updateVFS, hostname, openWindow, closeWindow, dockApps } = useSystem();
-  
-  const [input, setInput] = useState("");
-  const [currentPath, setCurrentPath] = useState("/Users/node");
-  const [history, setHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [terminalLogs, setTerminalLogs] = useState<CommandLog[]>([
-    { type: "system", content: `Node OS v1.2.5-PRO 'Sequoia' Terminal (nsh)` },
-    { type: "system", content: `Authorized session initialized at ${new Date().toLocaleTimeString()}` },
-    { type: "system", content: "Type 'help' for the specialized command registry." }
-  ]);
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [terminalLogs]);
-
-  // --- VFS Logic ---
-  const getNodeAtPath = (path: string): VFSNode | null => {
-    if (path === "/" || path === "") return vfs;
-    if (path === "~") return vfs.children?.Users?.children?.node || null;
+const Terminal = () => {
+    const { addLog, metrics, closeWindow } = useSystem();
+    const [history, setHistory] = useState<string[]>([]);
+    const [input, setInput] = useState("");
+    const [outputs, setOutputs] = useState<{ type: "input" | "output" | "error" | "system", content: string, time?: string }[]>([
+        { type: "system", content: "Node OS v2.0-PRO 'Sequoia' Terminal (nsh 4.2)" },
+        { type: "system", content: "Authorized session initialized. Security Level: ROOT." },
+        { type: "system", content: "Type 'help' for the specialized command registry." },
+    ]);
+    const [currentTheme, setCurrentTheme] = useState<"sequoia" | "dracula" | "matrix" | "minimal">("sequoia");
+    const [showHistory, setShowHistory] = useState(false);
     
-    const parts = path.split("/").filter(p => p && p !== ".");
-    let current = vfs;
-    
-    for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (part === "..") {
-           // Not easily handled in mid-path with this simple VFS walker, 
-           // but getAbsolutePath already resolves '..'
-           continue; 
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const themes = {
+        sequoia: { bg: "bg-[#1C1C1E]/80", text: "text-white/90", border: "border-white/5", accent: "text-amber-500", prompt: "text-amber-500" },
+        dracula: { bg: "bg-[#282a36]/90", text: "text-[#f8f8f2]", border: "border-[#44475a]", accent: "text-[#bd93f9]", prompt: "text-[#50fa7b]" },
+        matrix: { bg: "bg-black/95", text: "text-[#00FF41]", border: "border-[#00FF41]/20", accent: "text-[#00FF41]", prompt: "text-[#00FF41]" },
+        minimal: { bg: "bg-zinc-950/60", text: "text-zinc-100", border: "border-white/5", accent: "text-blue-500", prompt: "text-zinc-500" }
+    };
+
+    const theme = themes[currentTheme];
+
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-        if (!current.children || !current.children[part]) return null;
-        current = current.children[part];
-    }
-    return current;
-  };
+    }, [outputs]);
 
-  const getAbsolutePath = (relPath: string) => {
-    if (relPath === "." || relPath === "./") return currentPath;
-    if (relPath.startsWith("/")) return relPath;
-    if (relPath === "~") return "/Users/node";
-    
-    const parts = currentPath.split("/").filter(Boolean);
-    if (relPath === "..") {
-      parts.pop();
-      return "/" + parts.join("/");
-    }
-    
-    return (currentPath === "/" ? "/" : currentPath + "/") + relPath;
-  };
+    const handleCommand = (cmd: string) => {
+        if (!cmd.trim()) return;
 
-  // --- Interaction Logic ---
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      if (historyIndex < history.length - 1) {
-        const nextIndex = historyIndex + 1;
-        setHistoryIndex(nextIndex);
-        setInput(history[history.length - 1 - nextIndex]);
-      }
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (historyIndex > 0) {
-        const nextIndex = historyIndex - 1;
-        setHistoryIndex(nextIndex);
-        setInput(history[history.length - 1 - nextIndex]);
-      } else {
-        setHistoryIndex(-1);
+        setHistory(prev => [...prev, cmd]);
+        setOutputs(prev => [...prev, { type: "input", content: cmd, time: new Date().toLocaleTimeString() }]);
+
+        const parts = cmd.toLowerCase().trim().split(" ");
+        const baseCmd = parts[0];
+
+        switch (baseCmd) {
+            case "help":
+                setOutputs(prev => [...prev, { type: "output", content: "Available Commands: help, clear, theme, top, whoami, exit, neofetch, nsh_update, logs, flush" }]);
+                break;
+            case "clear":
+                setOutputs([]);
+                break;
+            case "theme":
+                if (parts[1] && themes[parts[1] as keyof typeof themes]) {
+                    setCurrentTheme(parts[1] as any);
+                    setOutputs(prev => [...prev, { type: "system", content: `Visual interface redirected to ${parts[1]} profile.` }]);
+                } else {
+                    setOutputs(prev => [...prev, { type: "error", content: "Available Themes: sequoia, dracula, matrix, minimal" }]);
+                }
+                break;
+            case "top":
+                setOutputs(prev => [...prev, { type: "output", content: `CPU Load: ${metrics.cpu}% | Memory: ${metrics.memory}% | Processes: 14 Active` }]);
+                break;
+            case "whoami":
+                setOutputs(prev => [...prev, { type: "output", content: "node@authorized_instance (Root Developer)" }]);
+                break;
+            case "exit":
+                closeWindow("terminal");
+                break;
+            case "neofetch":
+                setOutputs(prev => [...prev, { type: "output", content: `
+   /\\_/\\
+  ( o.o )  OS: Node OS Sequoia v2.0-PRO
+   > ^ <   Host: Sequoia-Quantum-X1
+           Kernel: NSH 4.2.0-STABLE
+           Shell: zsh (simulated)
+           Resolution: 1920x1080
+           DE: Sequoia-Spatial
+           WM: Node-WM
+           CPU: Quantum Tensor Core
+           Memory: 64MB / 128MB
+                ` }]);
+                break;
+            case "nsh_update":
+                setOutputs(prev => [...prev, { type: "system", content: "Checking for firmware updates..." }]);
+                setTimeout(() => setOutputs(prev => [...prev, { type: "output", content: "NSH is already at the current stable version (4.2.1)." }]), 1500);
+                break;
+            default:
+                setOutputs(prev => [...prev, { type: "error", content: `nsh: command not found: ${baseCmd}. Type 'help' for instructions.` }]);
+        }
         setInput("");
-      }
-    } else if (e.key === "Tab") {
-      e.preventDefault();
-      handleAutocomplete();
-    }
-  };
+    };
 
-  const handleAutocomplete = () => {
-    const parts = input.split(" ");
-    const lastPart = parts[parts.length - 1];
-    if (!lastPart) return;
+    return (
+        <div className={cn("h-full flex flex-col backdrop-blur-3xl overflow-hidden font-mono transition-all duration-500", theme.bg, theme.border)}>
+            {/* Pro Terminal Header */}
+            <header className="h-12 border-b border-white/5 flex items-center justify-between px-6 bg-black/20">
+                <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-3">
+                        <TerminalIcon className={cn("h-4 w-4", theme.accent)} />
+                        <span className={cn("text-[10px] font-black uppercase tracking-[0.2em]", theme.text)}>Node_SH / Root</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-[9px] font-bold text-zinc-600">
+                        <div className="flex items-center gap-2">
+                           <Activity className="h-3 w-3" />
+                           <span>RT: {metrics.cpu}%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <Globe className="h-3 w-3" />
+                           <span>127.0.0.1</span>
+                        </div>
+                    </div>
+                </div>
 
-    // Autocomplete Apps
-    const appMatches = dockApps.filter(app => app.id.startsWith(lastPart.toLowerCase()));
-    if (appMatches.length === 1) {
-        parts[parts.length - 1] = appMatches[0].id;
-        setInput(parts.join(" "));
-        return;
-    }
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1 p-1 bg-black/20 rounded-lg border border-white/5">
+                        <button onClick={() => setCurrentTheme("sequoia")} className={cn("p-1.5 rounded-md", currentTheme === "sequoia" ? "bg-white/10" : "opacity-40")}><Circle className="h-2.5 w-2.5 fill-amber-500 text-amber-500" /></button>
+                        <button onClick={() => setCurrentTheme("dracula")} className={cn("p-1.5 rounded-md", currentTheme === "dracula" ? "bg-white/10" : "opacity-40")}><Circle className="h-2.5 w-2.5 fill-purple-500 text-purple-500" /></button>
+                        <button onClick={() => setCurrentTheme("matrix")} className={cn("p-1.5 rounded-md", currentTheme === "matrix" ? "bg-white/10" : "opacity-40")}><Circle className="h-2.5 w-2.5 fill-green-500 text-green-500" /></button>
+                    </div>
+                    <button onClick={() => setShowHistory(!showHistory)} className={cn("p-2 rounded-xl transition-all", showHistory ? "bg-primary/20 text-primary" : "hover:bg-white/5 text-zinc-600")}>
+                        <History className="h-4 w-4" />
+                    </button>
+                </div>
+            </header>
 
-    // Autocomplete Files/Dirs
-    const parentNode = getNodeAtPath(currentPath);
-    if (parentNode && parentNode.children) {
-      const matches = Object.keys(parentNode.children).filter(name => name.startsWith(lastPart));
-      if (matches.length === 1) {
-        parts[parts.length - 1] = matches[0];
-        setInput(parts.join(" "));
-      }
-    }
-  };
+            <div className="flex-1 flex overflow-hidden">
+                {/* Main Prompt Area */}
+                <main 
+                    className="flex-1 p-8 overflow-y-auto no-scrollbar custom-scrollbar"
+                    ref={scrollRef}
+                    onClick={() => inputRef.current?.focus()}
+                >
+                    <div className="space-y-3">
+                        {outputs.map((out, i) => (
+                            <div key={i} className="flex flex-col gap-1">
+                                {out.type === "input" ? (
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex items-center">
+                                            <span className="bg-primary px-3 py-0.5 text-black text-[9px] font-black rounded-l-[4px]">ROOT</span>
+                                            <span className="bg-white/10 px-3 py-0.5 text-white/60 text-[9px] font-black rounded-r-[4px]">~</span>
+                                        </div>
+                                        <ChevronRight className={cn("h-3 w-3", theme.prompt)} />
+                                        <span className={cn("text-[13px] font-medium tracking-tight", theme.text)}>{out.content}</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col">
+                                        <pre className={cn(
+                                            "text-[12px] leading-relaxed whitespace-pre-wrap font-medium",
+                                            out.type === "error" ? "text-rose-500" : 
+                                            out.type === "system" ? "text-primary italic opacity-60" : theme.text
+                                        )}>
+                                            {out.content}
+                                        </pre>
+                                        {out.time && <span className="text-[8px] font-bold text-zinc-700 uppercase mt-1 tracking-widest">{out.time}</span>}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
 
-  const handleCommand = (cmdStr: string) => {
-    const trimmed = cmdStr.trim();
-    if (!trimmed) return;
-    
-    setHistory(prev => [trimmed, ...prev].slice(0, 50));
-    setHistoryIndex(-1);
+                        {/* Interactive Prompt */}
+                        <div className="flex items-center gap-3 group pt-2">
+                             <div className="flex items-center">
+                                <span className="bg-primary px-3 py-0.5 text-black text-[9px] font-black rounded-l-[4px]">ROOT</span>
+                                <span className={cn("bg-white/5 px-3 py-0.5 text-[9px] font-black rounded-r-[4px] border-r border-white/5", theme.text)}>~</span>
+                            </div>
+                            < ChevronRight className={cn("h-3 w-3 transition-transform group-focus-within:translate-x-1", theme.prompt)} />
+                            <input 
+                                ref={inputRef}
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={e => e.key === "Enter" && handleCommand(input)}
+                                className={cn("flex-1 bg-transparent border-none focus:outline-none text-[13px] font-medium tracking-tight h-6", theme.text)}
+                                spellCheck={false}
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+                </main>
 
-    const args = trimmed.split(/\s+/);
-    const command = args[0].toLowerCase();
-    const target = args[1];
-
-    const prompt = `${hostname.split('-')[0].toLowerCase()}:${currentPath.split('/').pop() || '/'} node$`;
-    const newLogs: CommandLog[] = [...terminalLogs, { type: "input", content: `${prompt} ${cmdStr}` }];
-
-    switch (command) {
-      case "help":
-        newLogs.push({ type: "output", content: (
-          <div className="grid grid-cols-4 gap-x-6 gap-y-2 my-4 text-[10px] font-black tracking-widest uppercase text-primary/70">
-            <span>ls</span><span>cd</span><span>pwd</span><span>mkdir</span>
-            <span>touch</span><span>rm</span><span>cat</span><span>echo</span>
-            <span>grep</span><span>find</span><span>which</span><span>man</span>
-            <span>df</span><span>du</span><span>sw_vers</span><span>head</span>
-            <span>tail</span><span>open</span><span>neofetch</span><span>top</span>
-            <span>whoami</span><span>uname</span><span>uptime</span><span>clear</span>
-            <span>history</span><span>date</span><span>sudo</span><span>exit</span>
-          </div>
-        )});
-        break;
-
-      case "ls":
-        const lsPath = getAbsolutePath(target || ".");
-        const lsNode = getNodeAtPath(lsPath);
-        if (lsNode && lsNode.type === "directory" && lsNode.children) {
-          const contents = Object.values(lsNode.children).map(n => (
-            <span key={n.name} className={cn(
-                "px-2 py-0.5 rounded transition-colors", 
-                n.type === "directory" ? "text-blue-400 font-black hover:bg-blue-400/10" : "text-white/80 hover:bg-white/5"
-            )}>
-              {n.name}{n.type === "directory" ? "/" : ""}
-            </span>
-          ));
-          newLogs.push({ type: "output", content: <div className="flex flex-wrap gap-2 my-2">{contents}</div> });
-        } else {
-          newLogs.push({ type: "error", content: `nsh: ls: ${target || "."}: No such directory` });
-        }
-        break;
-
-      case "pwd":
-        newLogs.push({ type: "output", content: currentPath });
-        break;
-
-      case "cd":
-        const nextPath = getAbsolutePath(target || "~");
-        const nextNode = getNodeAtPath(nextPath);
-        if (nextNode && nextNode.type === "directory") {
-          setCurrentPath(nextPath || "/");
-        } else {
-          newLogs.push({ type: "error", content: `nsh: cd: ${target}: No such directory` });
-        }
-        break;
-
-      case "echo":
-        newLogs.push({ type: "output", content: args.slice(1).join(" ") });
-        break;
-
-      case "mkdir":
-        if (!target) { newLogs.push({ type: "error", content: "nsh: mkdir: missing operand" }); break; }
-        const mkdirParent = getNodeAtPath(currentPath);
-        if (mkdirParent && mkdirParent.children) {
-            const upVFS = JSON.parse(JSON.stringify(vfs));
-            const parts = currentPath.split("/").filter(Boolean);
-            let c = upVFS;
-            for (const p of parts) c = c.children[p];
-            c.children[target] = { name: target, type: "directory", updatedAt: Date.now(), children: {} };
-            updateVFS(upVFS);
-            newLogs.push({ type: "output", content: `nsh: created directory '${target}'` });
-        }
-        break;
-
-      case "touch":
-        if (!target) { newLogs.push({ type: "error", content: "nsh: touch: missing operand" }); break; }
-        const touchParent = getNodeAtPath(currentPath);
-        if (touchParent && touchParent.children) {
-            const upVFS = JSON.parse(JSON.stringify(vfs));
-            const parts = currentPath.split("/").filter(Boolean);
-            let c = upVFS;
-            for (const p of parts) c = c.children[p];
-            c.children[target] = { name: target, type: "file", content: "", updatedAt: Date.now() };
-            updateVFS(upVFS);
-            newLogs.push({ type: "output", content: `nsh: initialized file '${target}'` });
-        }
-        break;
-
-      case "rm":
-        if (!target) { newLogs.push({ type: "error", content: "nsh: rm: missing operand" }); break; }
-        const rmParent = getNodeAtPath(currentPath);
-        if (rmParent && rmParent.children && rmParent.children[target]) {
-            const upVFS = JSON.parse(JSON.stringify(vfs));
-            const parts = currentPath.split("/").filter(Boolean);
-            let c = upVFS;
-            for (const p of parts) c = c.children[p];
-            delete c.children[target];
-            updateVFS(upVFS);
-            newLogs.push({ type: "output", content: `nsh: removed '${target}'` });
-        } else {
-            newLogs.push({ type: "error", content: `nsh: rm: ${target}: No such file or directory` });
-        }
-        break;
-
-      case "grep":
-        const pattern = target;
-        const fileToGrep = args[2];
-        if (!pattern || !fileToGrep) { newLogs.push({ type: "error", content: "usage: grep [pattern] [file]" }); break; }
-        const gNode = getNodeAtPath(getAbsolutePath(fileToGrep));
-        if (gNode && gNode.type === "file" && gNode.content) {
-            const matches = gNode.content.split("\n").filter(line => line.includes(pattern));
-            newLogs.push({ type: "output", content: matches.join("\n") || "(no matches)" });
-        } else {
-            newLogs.push({ type: "error", content: `nsh: grep: ${fileToGrep}: No such file` });
-        }
-        break;
-
-      case "find":
-        if (!target) { newLogs.push({ type: "error", content: "usage: find [name]" }); break; }
-        const results: string[] = [];
-        const searchVFS = (node: VFSNode, path: string) => {
-            if (node.name.includes(target)) results.push(path);
-            if (node.children) {
-                Object.values(node.children).forEach(child => searchVFS(child, `${path}/${child.name}`));
-            }
-        };
-        searchVFS(vfs, "");
-        newLogs.push({ type: "output", content: results.join("\n") || "No results found" });
-        break;
-
-      case "which":
-        const cmdToFind = target;
-        if (!cmdToFind) break;
-        const isBuiltin = ["ls", "cd", "pwd", "mkdir", "touch", "rm", "cat", "echo", "grep", "find", "which", "man", "df", "du", "sw_vers", "head", "tail", "open", "neofetch", "top", "ps", "whoami", "uname", "uptime", "clear", "history", "date", "sudo", "exit"].includes(cmdToFind);
-        if (isBuiltin) newLogs.push({ type: "output", content: `nsh: builtin command: ${cmdToFind}` });
-        else newLogs.push({ type: "error", content: `${cmdToFind} not found` });
-        break;
-
-      case "man":
-        newLogs.push({ type: "output", content: `Manual page for ${target || "system"} - Sequoia Pro Core Utilities v1.2.5` });
-        break;
-
-      case "sw_vers":
-        newLogs.push({ type: "output", content: (
-            <div className="space-y-1">
-                <p>ProductName: Node OS</p>
-                <p>ProductVersion: 15.0.1 (Sequoia)</p>
-                <p>BuildVersion: 24B83</p>
+                {/* History Drawer */}
+                <AnimatePresence>
+                    {showHistory && (
+                        <motion.aside
+                            initial={{ width: 0, opacity: 0 }}
+                            animate={{ width: 280, opacity: 1 }}
+                            exit={{ width: 0, opacity: 0 }}
+                            className="bg-black/20 border-l border-white/5 flex flex-col overflow-hidden"
+                        >
+                            <div className="p-6 flex flex-col h-full">
+                                <div className="flex items-center gap-2 mb-6">
+                                    <History className="h-4 w-4 text-zinc-600" />
+                                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-600">Command Buffer</span>
+                                </div>
+                                <div className="flex-1 space-y-2 overflow-y-auto no-scrollbar">
+                                    {history.map((h, i) => (
+                                        <button 
+                                            key={i} 
+                                            onClick={() => handleCommand(h)}
+                                            className="w-full text-left p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/5 transition-all group"
+                                        >
+                                            <span className="text-[10px] font-bold text-zinc-500 group-hover:text-primary transition-colors truncate block">{h}</span>
+                                        </button>
+                                    ))}
+                                    {history.length === 0 && (
+                                        <div className="py-20 text-center opacity-10">
+                                            <Search className="h-10 w-10 mx-auto mb-4" />
+                                            <p className="text-[9px] font-black uppercase tracking-widest">Buffer Empty</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.aside>
+                    )}
+                </AnimatePresence>
             </div>
-        )});
-        break;
 
-      case "df":
-        newLogs.push({ type: "output", content: (
-            <div className="grid grid-cols-5 gap-4 opacity-70">
-                <span>Filesystem</span><span>Size</span><span>Used</span><span>Avail</span><span>Capacity</span>
-                <span>/dev/disk3s1s1</span><span>994Gi</span><span>124Gi</span><span>820Gi</span><span>13%</span>
-                <span>devfs</span><span>202Ki</span><span>202Ki</span><span>0Bi</span><span>100%</span>
-            </div>
-        )});
-        break;
-
-      case "cat":
-        if (!target) { newLogs.push({ type: "error", content: "cat: missing file operand" }); break; }
-        const cNode = getNodeAtPath(getAbsolutePath(target));
-        if (cNode && cNode.type === "file") {
-            newLogs.push({ type: "code", content: <pre className="p-4 bg-white/5 rounded-xl border border-white/5 text-[11px] font-mono whitespace-pre-wrap">{cNode.content || "(empty file)"}</pre> });
-        } else {
-            newLogs.push({ type: "error", content: `cat: ${target}: No such file` });
-        }
-        break;
-
-      case "uname":
-        newLogs.push({ type: "output", content: "Node OS 1.2.5 Darwin x86_64 Sequoia-Pro" });
-        break;
-
-      case "uptime":
-        newLogs.push({ type: "output", content: "up 13:12, 1 user, load average: 0.15, 0.10, 0.08" });
-        break;
-
-      case "history":
-        newLogs.push({ type: "output", content: (
-            <div className="space-y-0.5 opacity-60">
-                {history.reverse().map((h, i) => <div key={i}>{i+1}  {h}</div>)}
-            </div>
-        )});
-        break;
-
-      case "neofetch":
-        newLogs.push({ type: "output", content: (
-            <div className="flex gap-10 my-6 p-8 bg-white/5 rounded-[40px] border border-white/10 shadow-2xl backdrop-blur-2xl">
-               <div className="text-primary flex items-center justify-center h-28 w-28 bg-white/5 rounded-[50px] border border-white/10 shadow-inner group">
-                  <Terminal className="h-14 w-14 group-hover:scale-110 transition-transform duration-500" />
-               </div>
-               <div className="space-y-1 font-mono text-[11px] leading-tight flex-1">
-                  <p className="text-lg font-black text-white mb-2 leading-none">node@sequoia-pro</p>
-                  <p><span className="text-primary font-black opacity-60">OS</span>: Node OS 1.2.5 Sequoia</p>
-                  <p><span className="text-primary font-black opacity-60">KERNEL</span>: xnu-node-1.2.5</p>
-                  <p><span className="text-primary font-black opacity-60">UPTIME</span>: 13h 12m</p>
-                  <p><span className="text-primary font-black opacity-60">SHELL</span>: nsh 3.5 (Posix-Sim)</p>
-                  <p><span className="text-primary font-black opacity-60">CPU</span>: Virtual Node Engine (8) @ 3.4GHz</p>
-                  <p><span className="text-primary font-black opacity-60">MEM</span>: {metrics.ram}GB / 16.0GB ({((metrics.ram/16)*100).toFixed(0)}%)</p>
-                  <div className="flex gap-2 mt-5">
-                     {["bg-blue-500", "bg-purple-500", "bg-emerald-500", "bg-amber-500", "bg-rose-500", "bg-white"].map(c => <div key={c} className={cn("w-5 h-2 rounded-full", c)} />)}
-                  </div>
-               </div>
-            </div>
-        )});
-        break;
-
-      case "open":
-        const appToOpen = dockApps.find(a => a.id.toLowerCase() === target?.toLowerCase());
-        if (appToOpen) {
-            newLogs.push({ type: "system", content: `Spawning window for ${appToOpen.name}...` });
-            openWindow(appToOpen.id, appToOpen.name, <appToOpen.icon className="h-4 w-4" />, appToOpen.component);
-            addLog(`Terminal Spawn: ${appToOpen.name}`, "success");
-        } else {
-            newLogs.push({ type: "error", content: `nsh: open: ${target}: Application not found in registry` });
-        }
-        break;
-
-      case "exit":
-        newLogs.push({ type: "system", content: "Terminating session..." });
-        setTerminalLogs(newLogs);
-        setTimeout(() => closeWindow("terminal"), 500);
-        return;
-
-      case "clear":
-        setTerminalLogs([]);
-        setInput("");
-        return;
-
-      default:
-        newLogs.push({ type: "error", content: `nsh: command not found: ${command}` });
-    }
-
-    setTerminalLogs(newLogs);
-    setInput("");
-  };
-
-  return (
-    <div className="h-full flex flex-col font-mono text-white/90 bg-black/70 p-8 overflow-hidden">
-      <div 
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pb-20 select-text cursor-text"
-        onClick={() => {
-           if (window.getSelection()?.toString() === "") {
-              inputRef.current?.focus();
-           }
-        }}
-      >
-        {terminalLogs.map((log, i) => (
-          <div key={i} className={cn(
-            "text-[13px] leading-relaxed break-all",
-            log.type === "input" && "text-white font-black",
-            log.type === "output" && "text-zinc-400 ml-5 whitespace-pre-wrap",
-            log.type === "error" && "text-rose-500 font-extrabold uppercase text-[10px] ml-5 bg-rose-500/10 px-3 py-1 rounded-lg border border-rose-500/20 inline-block",
-            log.type === "system" && "text-primary italic font-bold opacity-60",
-            log.type === "code" && "ml-5"
-          )}>
-            {log.content}
-          </div>
-        ))}
-      </div>
-
-      <form 
-        onSubmit={(e) => { e.preventDefault(); handleCommand(input); }}
-        className="flex items-center gap-3 border-t border-white/10 pt-6 bg-black/30 -mx-8 px-8"
-      >
-        <div className="flex items-center gap-2 shrink-0">
-            <span className="text-primary font-black">node</span>
-            <span className="text-white/20 font-black">@</span>
-            <span className="text-emerald-500 font-black">{currentPath.split('/').pop() || '/'}</span>
-            <ChevronRight className="h-4 w-4 text-white/40" />
+            {/* Powerline Footer */}
+            <footer className="h-8 border-t border-white/5 flex items-center justify-between px-6 bg-black/40 text-[9px] font-black uppercase tracking-widest">
+                <div className="flex items-center h-full">
+                    <div className="flex items-center h-full gap-4 text-zinc-600">
+                        <div className="flex items-center gap-2">
+                            <Hash className="h-3.5 w-3.5 text-primary" />
+                            <span>NODE_NSH</span>
+                        </div>
+                        <div className="h-3 w-px bg-white/5" />
+                        <div className="flex items-center gap-2">
+                            <Shield className="h-3.5 w-3.5 text-emerald-500" />
+                            <span>V-ENCRYPT</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center h-full gap-6 text-zinc-600">
+                    <div className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>UTC: {new Date().toLocaleTimeString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2 group cursor-pointer hover:text-white transition-colors">
+                        <Settings className="h-3.5 w-3.5" />
+                        <span>PREFS</span>
+                    </div>
+                </div>
+            </footer>
         </div>
-        <input
-          ref={inputRef}
-          autoFocus
-          className="flex-1 bg-transparent border-none text-[13px] text-white focus:outline-none placeholder:text-white/5"
-          placeholder="Execute system call..."
-          value={input}
-          onKeyDown={handleKeyDown}
-          onChange={(e) => setInput(e.target.value)}
-          spellCheck={false}
-          autoComplete="off"
-        />
-        <div className="flex items-center gap-8 opacity-20 text-[10px] font-black uppercase tracking-[0.3em] hidden xl:flex">
-           <span className="flex items-center gap-2"><Globe className="h-3.5 w-3.5" /> Posix Link</span>
-           <span className="flex items-center gap-2"><Lock className="h-3.5 w-3.5" /> 256-Bit</span>
-        </div>
-      </form>
-    </div>
-  );
+    );
 };
 
-export default TerminalApp;
+export default Terminal;

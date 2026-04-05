@@ -27,7 +27,10 @@ import {
   Maximize2,
   Zap,
   Trash2,
-  Grid
+  Grid,
+  Music as MusicIcon,
+  PlayCircle,
+  Globe
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSystem } from "@/contexts/SystemContext";
@@ -36,7 +39,13 @@ import Spotlight from "./Spotlight";
 import Launchpad from "./Launchpad";
 import MissionControl from "./MissionControl";
 import PowerOverlay from "./PowerOverlay";
+import IntelligenceAssistant from "./IntelligenceAssistant";
+import LiveWallpaper from "./LiveWallpaper";
+import DesktopLayer from "./DesktopLayer";
+import WidgetGallery from "./WidgetGallery";
+import AppIcon from "./ui/AppIcon";
 import Auth from "@/pages/Auth";
+import { Plus } from "lucide-react";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Proposals = lazy(() => import("@/pages/Proposals"));
@@ -52,6 +61,10 @@ const ClockApp = lazy(() => import("@/components/apps/Clock"));
 const Notes = lazy(() => import("@/components/apps/Notes"));
 const Finder = lazy(() => import("@/components/apps/Finder"));
 
+const MusicCap = lazy(() => import("@/components/apps/Music"));
+const VideoCap = lazy(() => import("@/components/apps/VideoPlayer"));
+const NavigatorCap = lazy(() => import("@/components/apps/Navigator"));
+
 const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const { 
@@ -65,6 +78,10 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     wallpaper,
     activeWindows,
     openWindow,
+    closeWindow,
+    minimizeWindow,
+    maximizeWindow,
+    focusWindow,
     addLog,
     dockApps,
     metrics,
@@ -76,12 +93,16 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
+  const isVideo = wallpaper?.endsWith('.mp4') || wallpaper?.endsWith('.webm');
+  const isLive = wallpaper?.startsWith('live:');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showControlCenter, setShowControlCenter] = useState(false);
   const [showAppleMenu, setShowAppleMenu] = useState(false);
+  const [isDockHidden, setIsDockHidden] = useState(false);
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(false);
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(false);
   const [isMissionControlOpen, setIsMissionControlOpen] = useState(false);
+  const [isWidgetGalleryOpen, setIsWidgetGalleryOpen] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -90,56 +111,87 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      const isCmd = e.metaKey || e.ctrlKey;
+      const isShift = e.shiftKey;
+      const isAlt = e.altKey;
+      const key = e.key.toLowerCase();
+
+      // System Navigation: Spotlight & Lock
+      if (isCmd && e.key === " ") {
         e.preventDefault();
         setIsSpotlightOpen(prev => !prev);
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "l") {
+      if (isCmd && key === "k") {
+        e.preventDefault();
+        setIsSpotlightOpen(prev => !prev);
+      }
+      if (isCmd && key === "l") {
         e.preventDefault();
         setPowerStatus("locked");
+      }
+      
+      // Mission Control
+      if (key === "f3" || (e.ctrlKey && key === "arrowup")) {
+        e.preventDefault();
+        setIsMissionControlOpen(prev => !prev);
+      }
+
+      // App Launchers & Sequoia
+      if (isCmd && key === "j") {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('toggle-intelligence'));
+      }
+      if (isCmd && isShift && key === "a") {
+        e.preventDefault();
+        openWindow("finder", "Finder", <Folder className="h-4 w-4" />, "finder");
+      }
+      if (isCmd && key === "t") {
+        e.preventDefault();
+        openWindow("terminal", "Terminal", <TerminalIcon className="h-4 w-4" />, "terminal");
+      }
+      if (isCmd && key === "n") {
+        e.preventDefault();
+        openWindow("notes", "Notes", <FileText className="h-4 w-4" />, "notes");
+      }
+
+      // Environment Control: Hide Dock
+      if (isCmd && isAlt && key === "d") {
+        e.preventDefault();
+        setIsDockHidden(prev => !prev);
+      }
+
+      // Window Management (CMD)
+      if (isCmd && !isAlt) {
+        const topWindow = [...activeWindows].sort((a, b) => b.zIndex - a.zIndex)[0];
+        if (topWindow) {
+          if (key === "w") { e.preventDefault(); closeWindow(topWindow.id); }
+          if (key === "m") { e.preventDefault(); minimizeWindow(topWindow.id); }
+        }
+      }
+
+      // Window Management (CMD + OPT)
+      if (isCmd && isAlt) {
+        const topWindow = [...activeWindows].sort((a, b) => b.zIndex - a.zIndex)[0];
+        if (topWindow && key === "f") {
+           e.preventDefault();
+           maximizeWindow(topWindow.id);
+        }
+      }
+
+      // Snap Orchestration (OPT + ARROWS)
+      if (isAlt && !isCmd) {
+        const topWindow = [...activeWindows].sort((a, b) => b.zIndex - a.zIndex)[0];
+        if (!topWindow) return;
+
+        if (key === "arrowleft") { e.preventDefault(); snapWindow(topWindow.id, "left"); }
+        if (key === "arrowright") { e.preventDefault(); snapWindow(topWindow.id, "right"); }
+        if (key === "arrowup") { e.preventDefault(); snapWindow(topWindow.id, "full"); }
+        if (key === "arrowdown") { e.preventDefault(); snapWindow(topWindow.id, "none"); }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  // --- Mission Control Listener (F3) ---
-  useEffect(() => {
-    const handleMissionControl = (e: KeyboardEvent) => {
-      if (e.key === "F3" || (e.ctrlKey && e.key === "ArrowUp")) {
-        e.preventDefault();
-        setIsMissionControlOpen(prev => !prev);
-      }
-    };
-    window.addEventListener("keydown", handleMissionControl);
-    return () => window.removeEventListener("keydown", handleMissionControl);
-  }, []);
-
-  // --- Window Snapping Shortcuts (Option + Arrows) ---
-  useEffect(() => {
-    const handleSnapKeys = (e: KeyboardEvent) => {
-      if (e.altKey) {
-        const topWindow = [...activeWindows].sort((a, b) => b.zIndex - a.zIndex)[0];
-        if (!topWindow) return;
-
-        if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          snapWindow(topWindow.id, "left");
-        } else if (e.key === "ArrowRight") {
-          e.preventDefault();
-          snapWindow(topWindow.id, "right");
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault();
-          snapWindow(topWindow.id, "full");
-        } else if (e.key === "ArrowDown") {
-          e.preventDefault();
-          snapWindow(topWindow.id, "none");
-        }
-      }
-    };
-    window.addEventListener("keydown", handleSnapKeys);
-    return () => window.removeEventListener("keydown", handleSnapKeys);
-  }, [activeWindows, snapWindow]);
+  }, [activeWindows, snapWindow, closeWindow, minimizeWindow, maximizeWindow, openWindow, setPowerStatus]);
 
   useEffect(() => {
     const pathMap: Record<string, any> = {
@@ -149,6 +201,9 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       "/portfolio": { id: "portfolio", name: "Code", icon: <Folder className="h-4 w-4" />, component: "portfolio" },
       "/settings": { id: "settings", name: "Settings", icon: <SettingsIcon className="h-4 w-4" />, component: "settings" },
       "/pricing": { id: "billing", name: "Billing", icon: <CreditCard className="h-4 w-4" />, component: "billing" },
+      "/music": { id: "music", name: "Symphony", icon: <MusicIcon className="h-4 w-4" />, component: "music" },
+      "/video": { id: "video", name: "Cinematic", icon: <PlayCircle className="h-4 w-4" />, component: "video" },
+      "/browse": { id: "navigator", name: "Navigator", icon: <Globe className="h-4 w-4" />, component: "navigator" },
     };
     const app = pathMap[location.pathname];
     if (app) openWindow(app.id, app.name, app.icon, app.component);
@@ -170,6 +225,9 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       case "clock": return <ClockApp />;
       case "notes": return <Notes />;
       case "finder": return <Finder />;
+      case "music": return <MusicCap />;
+      case "video": return <VideoCap />;
+      case "navigator": return <NavigatorCap />;
       default: return <div className="p-20 text-center opacity-20 text-white">Hardware Registry Not Found</div>;
     }
   };
@@ -181,8 +239,54 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden font-sans select-none text-foreground antialiased bg-black">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-0 bg-cover bg-center transition-all duration-1000" style={{ backgroundImage: `url('${wallpaper}')` }} />
+      
+      {/* Dynamic Aesthetic Layer */}
+      <AnimatePresence mode="wait">
+        <motion.div 
+           key={wallpaper}
+           initial={{ opacity: 0 }}
+           animate={{ opacity: 1 }}
+           exit={{ opacity: 0 }}
+           transition={{ duration: 1.5 }}
+           className="absolute inset-0 z-0 overflow-hidden"
+        >
+           {isLive ? (
+              <LiveWallpaper scene={wallpaper} />
+           ) : isVideo ? (
+              <video 
+                 autoPlay 
+                 loop 
+                 muted 
+                 playsInline 
+                 className="absolute inset-0 w-full h-full object-cover filter brightness-[0.8]"
+              >
+                 <source src={wallpaper} type={`video/${wallpaper.split('.').pop()}`} />
+              </video>
+           ) : (
+              <div 
+                 className="absolute inset-0 bg-cover bg-center transition-all duration-1000" 
+                 style={{ backgroundImage: `url('${wallpaper}')` }} 
+              />
+           )}
+        </motion.div>
+      </AnimatePresence>
+      
       <div className="absolute inset-0 z-0 bg-black/10 backdrop-blur-[0.5px]" />
+      
+      {/* Widget Orchestration Layer */}
+      <DesktopLayer />
+
+      <div className="absolute top-20 right-10 z-[15] flex flex-col items-end gap-6 pointer-events-auto">
+         <button 
+           onClick={() => setIsWidgetGalleryOpen(true)}
+           className="group flex flex-col items-center gap-2 hover:scale-105 transition-transform"
+         >
+            <div className="w-14 h-14 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-lg group-hover:bg-white/10 transition-all">
+               <Plus className="h-6 w-6 text-white/40 group-hover:text-white" />
+            </div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-white/40 group-hover:text-white transition-all bg-black/20 px-2 py-0.5 rounded-sm">Add Widget</span>
+         </button>
+      </div>
 
       <div className="absolute bottom-32 right-12 z-10 pointer-events-none text-right">
          <motion.h2 animate={{ opacity: 0.6 }} className="text-8xl font-black tracking-tighter text-white/40 leading-none filter blur-[0.5px]">
@@ -204,7 +308,7 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       )}
 
-      <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden pt-8">
+      <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden">
         <AnimatePresence>
           {activeWindows.filter(w => !w.isMinimized).map((win) => (
             <MacOSWindow key={win.id} window={win}>
@@ -239,7 +343,6 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
 
         <div className="flex items-center gap-6 h-full p-2">
-           {/* System Monitor */}
            <div className="hidden xl:flex items-center gap-6 px-4 py-1 rounded-lg bg-white/5 border border-white/5">
               <div className="flex items-center gap-2">
                  <span className="text-[9px] font-black tracking-widest text-white/40 uppercase">CPU</span>
@@ -265,23 +368,30 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </header>
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] pointer-events-auto">
-        <motion.div className="h-16 px-4 bg-zinc-900/40 backdrop-blur-3xl border border-white/10 rounded-[30px] flex items-center gap-4 shadow-2xl">
-          <button onClick={() => setIsLaunchpadOpen(!isLaunchpadOpen)} className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 hover:-translate-y-2 transition-all duration-300 border border-white/10 group">
-             <Grid className={cn("h-7 w-7 text-primary/80 group-hover:text-primary transition-all", isLaunchpadOpen && "scale-110 text-primary")} />
+      <div className={cn(
+         "absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] transition-all duration-700 ease-in-out",
+         isDockHidden ? "translate-y-[150%] opacity-0 pointer-events-none" : "translate-y-0 opacity-100 pointer-events-auto"
+      )}>
+        <motion.div className="h-14 px-3 bg-zinc-900/40 backdrop-blur-3xl border border-white/10 rounded-[24px] flex items-center gap-1.5 shadow-2xl">
+          <button onClick={() => setIsLaunchpadOpen(!isLaunchpadOpen)} className="p-2 bg-white/5 rounded-xl hover:bg-white/10 hover:-translate-y-1.5 transition-all duration-300 border border-white/10 group">
+             <Grid className={cn("h-6 w-6 text-primary/80 group-hover:text-primary transition-all", isLaunchpadOpen && "scale-110 text-primary")} />
           </button>
-          <div className="w-px h-8 bg-white/10 mx-1" />
+          <div className="w-px h-6 bg-white/10 mx-0.5" />
           {dockApps.map((app) => (
-            <button key={app.id} onClick={() => openWindow(app.id, app.name, <app.icon className="h-4 w-4" />, app.component)} className="relative group">
-              <div className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 hover:-translate-y-2 transition-all duration-300 border border-white/10">
-                 <app.icon className="h-7 w-7 text-white/80 group-hover:text-white" />
-              </div>
-              {activeWindows.find(w => w.id === app.id) && <motion.div layoutId={`indicator-${app.id}`} className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full shadow-[0_0_5px_white]" />}
+            <button key={app.id} onClick={() => openWindow(app.id, app.name, <app.icon className="h-4 w-4" />, app.component)} className="relative group p-0.5 transition-all duration-300 hover:-translate-y-1.5 focus:outline-none">
+               <AppIcon icon={app.icon} category={app.category} size="md" />
+               {activeWindows.find(w => w.id === app.id) && <motion.div layoutId={`indicator-${app.id}`} className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-primary rounded-full shadow-[0_0_8px_rgba(250,82,82,0.8)]" />}
+               <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/10 rounded-xl text-[10px] font-black tracking-widest text-white uppercase opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[110] shadow-2xl">
+                  {app.name}
+               </div>
             </button>
           ))}
-          <div className="w-px h-8 bg-white/10 mx-1" />
-          <button onClick={() => openWindow("finder", "Trash", <Trash2 className="h-4 w-4" />, "finder")} className="p-3 bg-white/5 rounded-2xl hover:bg-white/10 hover:-translate-y-2 transition-all duration-300 border border-white/10 group">
-              <Trash2 className="h-7 w-7 text-white/20 group-hover:text-white transition-all" />
+          <div className="w-px h-6 bg-white/10 mx-0.5" />
+          <button onClick={() => openWindow("finder", "Trash", <Trash2 className="h-4 w-4" />, "finder")} className="relative group p-0.5 transition-all duration-300 hover:-translate-y-1.5 focus:outline-none">
+               <AppIcon icon={Trash2} category="system" size="md" className="bg-zinc-800/40 opacity-60 group-hover:opacity-100" />
+               <div className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-zinc-900/90 backdrop-blur-xl border border-white/10 rounded-xl text-[10px] font-black tracking-widest text-white uppercase opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[110] shadow-2xl">
+                  Trash
+               </div>
           </button>
         </motion.div>
       </div>
@@ -318,7 +428,8 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         )}
       </AnimatePresence>
 
-      {/* Power & Auth Layers */}
+      {/* Power, Intel & Auth Layers */}
+      <IntelligenceAssistant />
       <PowerOverlay />
       <AnimatePresence>
         {powerStatus === "locked" && (
@@ -329,8 +440,16 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
              className="absolute inset-0 z-[2000] bg-black/60 backdrop-blur-2xl"
            >
               <Auth />
-              {/* Specialized Auth variant could be here, but current Auth works as a standalone lock screen */}
            </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isWidgetGalleryOpen && (
+          <WidgetGallery 
+            isOpen={isWidgetGalleryOpen} 
+            onClose={() => setIsWidgetGalleryOpen(false)} 
+          />
         )}
       </AnimatePresence>
     </div>

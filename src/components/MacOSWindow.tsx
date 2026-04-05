@@ -21,27 +21,27 @@ const MacOSWindow: React.FC<MacOSWindowProps> = ({
     switch (type) {
       case "full":
         return {
-          width: "calc(100vw - 32px)",
-          height: "calc(100vh - 80px)",
-          x: 16,
-          y: 48,
-          borderRadius: "14px 14px 0 0"
+          width: "100vw",
+          height: "calc(100vh - 32px - 100px)",
+          x: 0,
+          y: 32,
+          borderRadius: "0px"
         };
       case "left":
         return {
-          width: "calc(50vw - 20px)",
-          height: "calc(100vh - 80px)",
-          x: 16,
-          y: 48,
-          borderRadius: "14px 0 0 0"
+          width: "50vw",
+          height: "calc(100vh - 32px - 100px)",
+          x: 0,
+          y: 32,
+          borderRadius: "0px"
         };
       case "right":
         return {
-          width: "calc(50vw - 20px)",
-          height: "calc(100vh - 80px)",
-          x: "calc(50vw + 4px)",
-          y: 48,
-          borderRadius: "0 14px 0 0"
+          width: "50vw",
+          height: "calc(100vh - 32px - 100px)",
+          x: "50vw",
+          y: 32,
+          borderRadius: "0px"
         };
       case "center":
         return {

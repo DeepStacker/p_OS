@@ -202,21 +202,26 @@ const callOpenAICompatible = async (provider: any, system: string, user: string,
   const decoder = new TextDecoder();
   if (!reader) return;
 
+  let buffer = "";
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    const chunk = decoder.decode(value);
-    const lines = chunk.split("\n");
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || ""; // Save the incomplete line for the next chunk
+
     for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const data = line.slice(6);
+      if (line.trim().startsWith("data: ")) {
+        const data = line.trim().slice(6);
         if (data === "[DONE]") break;
         try {
           const json = JSON.parse(data);
           const content = json.choices[0]?.delta?.content || "";
-          onChunk(content);
-        } catch (e) {}
+          if (content) onChunk(content);
+        } catch (e) {
+          // Keep processing if one line is malformed, but partials are now handled by the buffer
+        }
       }
     }
   }
@@ -239,11 +244,16 @@ const callGemini = async (provider: any, system: string, user: string, onChunk: 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    const chunk = decoder.decode(value);
+    const chunk = decoder.decode(value, { stream: true });
     try {
-      const json = JSON.parse(chunk.replace(/^\[|,|\]$/g, ''));
-      const text = json.candidates[0]?.content?.parts[0]?.text || "";
-      onChunk(text);
+      // Gemini returns a JSON array or objects in a stream. Our current basic extraction:
+      const textMatches = chunk.match(/"text":\s*"([^"]*)"/g);
+      if (textMatches) {
+        textMatches.forEach(match => {
+          const text = match.slice(8, -1);
+          if (text) onChunk(text.replace(/\\n/g, '\n'));
+        });
+      }
     } catch (e) {}
   }
 };
@@ -252,14 +262,17 @@ export const generateProposalStream = async (
   jobDescription: string, 
   skills: string, 
   hourlyRate: string,
+  tone: string = "Professional",
+  template: string = "Standard",
   onChunk: (text: string, providerName?: string) => void
 ) => {
-  const systemPrompt = `Draft a proposal for the provided job. Use the provided skills and rate. 
+  const systemPrompt = `Draft a ${tone} proposal for the provided job using the ${template} format. Use the provided skills and rate. 
 STRUCTURE:
 # Requirements: Analysis of the job.
 # Solution: Practical implementation strategy.
 # Delivery: Estimated timeline.
-# Details: ${hourlyRate || "To be discussed"}.`;
+# Details: ${hourlyRate || "To be discussed"}.
+TONE GUIDELINE: ${tone}. Focus on high-impact language.`;
   
   // 0. Simulation Mode: If no keys are present, stream a mock proposal
   const hasAnyKey = PROVIDERS.some(p => !!p.key);
@@ -311,9 +324,9 @@ Proposed rate of ${hourlyRate || "$50/hr"} for this project.
   throw lastError || new Error("The system is currently busy. Please try again later.");
 };
 
-export const analyzeJobMatch = async (jobDescription: string, userSkills: string): Promise<string> => {
-  const system = "You are a Professional Job Analyst. Analyze the job description and the user's skills. Return exactly one sentence explaining why this job is a good fit. Be concise and professional.";
-  const user = `JOB: ${jobDescription}\nUSER SKILLS: ${userSkills}`;
+export const analyzeJobMatch = async (jobDescription: string, userSkills: string): Promise<{ score: number, summary: string }> => {
+  const system = "You are a Professional Job Analyst. Analyze the job and skills. Return exactly a JSON object: { \"score\": number 0-100, \"summary\": \"one sentence summary\" }";
+  const userInput = `JOB: ${jobDescription}\nUSER SKILLS: ${userSkills}`;
   
   for (const provider of PROVIDERS.slice(0, 3)) {
      if (!provider.key) continue;
@@ -328,19 +341,57 @@ export const analyzeJobMatch = async (jobDescription: string, userSkills: string
             model: provider.model,
             messages: [
               { role: "system", content: system },
-              { role: "user", content: user },
+              { role: "user", content: userInput },
             ],
             stream: false,
+            response_format: { type: "json_object" }
           }),
         });
         const data = await response.json();
-        return data.choices[0]?.message?.content || "Your skills are a strong match for this role.";
+        const content = JSON.parse(data.choices[0]?.message?.content);
+        return { 
+          score: content.score || 75, 
+          summary: content.summary || "This job aligns with your technical background." 
+        };
      } catch (err) {
-        console.error(`Match Analysis Engine ${provider.name} failed.`, err);
+        console.error(`Match Engine Failure`, err);
      }
   }
 
-  return "Your background matches the key requirements for this position.";
+  // Simulated fallback for high-fidelity UI
+  const simulatedScore = Math.floor(Math.random() * 30) + 70;
+  return { score: simulatedScore, summary: "Automated analysis indicates a strong alignment with project requirements." };
+};
+
+export const analyzeRepo = async (name: string, desc: string): Promise<{ sentiment: string, impact: string, stack: string[] }> => {
+  const system = "Analyze the repository description. Return exactly a JSON object: { \"sentiment\": \"one word label e.g. Modern\", \"impact\": \"one sentence impact\", \"stack\": [\"tech1\", \"tech2\"] }";
+  const userInput = `REPO: ${name}\nDESCRIPTION: ${desc}`;
+  
+  for (const provider of PROVIDERS.slice(0, 3)) {
+     if (!provider.key) continue;
+     try {
+        const response = await fetch(provider.url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${provider.key}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: provider.model,
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: userInput },
+            ],
+            stream: false,
+            response_format: { type: "json_object" }
+          }),
+        });
+        const data = await response.json();
+        return JSON.parse(data.choices[0]?.message?.content);
+     } catch (e) {}
+  }
+
+  return { sentiment: "Modern", impact: "High-performance systems engineering.", stack: ["TypeScript", "Node.js"] };
 };
 
 export const deepDiveJob = async (jobDescription: string): Promise<string> => {
@@ -373,4 +424,166 @@ export const deepDiveJob = async (jobDescription: string): Promise<string> => {
   }
 
   return "Analysis complete: The job description indicates significant opportunities for a skilled developer.";
+};
+
+export interface SequoiaAction {
+  type: 'OPEN_APP' | 'SET_SETTING' | 'LOCK' | 'POWER' | 'SET_WALLPAPER';
+  payload: any;
+}
+
+export type IntentType = 'JOBS' | 'REPO' | 'SYSTEM' | 'GENERAL' | 'ORCHESTRATE' | 'WALLPAPER';
+
+export interface IntentTask {
+  type: IntentType;
+  query?: string;
+  location?: string;
+  repoName?: string;
+  action?: SequoiaAction;
+  reasoning?: string;
+  wallpaperUrl?: string;
+}
+
+export interface IntentResult {
+  type: IntentType;
+  tasks?: IntentTask[];
+  query?: string;
+  location?: string;
+  repoName?: string;
+  action?: SequoiaAction;
+  reasoning?: string;
+  wallpaperUrl?: string;
+}
+
+const AESTHETIC_NODES: Record<string, string> = {
+  space: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=3544",
+  nature: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=3540",
+  modern: "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?q=80&w=3474",
+  dark: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&w=3122",
+  abstract: "https://images.unsplash.com/photo-1635776062127-d379bfcba9f8?q=80&w=3474",
+  matrix: "live:matrix",
+  celestial: "live:celestial",
+  cyber: "live:cyber"
+};
+
+export const fetchGitHubRepo = async (repoName: string): Promise<string> => {
+  try {
+     const formatted = repoName.replace(/https:\/\/github.com\//, '').trim();
+     const res = await fetch(`https://api.github.com/repos/${formatted}`);
+     const data = await res.json();
+     if (data.description) {
+        const analysis = await analyzeRepo(data.name, data.description);
+        return `GITHUB REPO: ${data.full_name}\nDESC: ${data.description}\nSTARS: ${data.stargazers_count}\nSENTIMENT: ${analysis.sentiment}\nIMPACT: ${analysis.impact}\nSTACK: ${analysis.stack.join(', ')}`;
+     }
+  } catch (e) {}
+  return `Repository information for ${repoName} could not be retrieved from the public VFS node.`;
+};
+
+export const classifyIntent = async (prompt: string): Promise<IntentResult> => {
+  const system = `Identify the user's intent within the Node OS ecosystem. 
+  AVAILABLE APPS: finder (files), dashboard, terminal, search (Jobs), portfolio (Code), settings, notes, music (Symphony Music), video (Cinematic Player), navigator (Web Browser).
+  INTENTS: 
+  - JOBS: Find employment opportunities (requires 'query', optional 'location').
+  - REPO: Analyze code repositories (requires 'repoName').
+  - SYSTEM: Control OS state (open apps, set themes).
+  - WALLPAPER: Change desktop background.
+  - ORCHESTRATE: A complex request requiring multiple steps.
+  
+  RETURN EXACTLY A JSON OBJECT:
+  - { "type": "JOBS", "query": "term", "location": "city" }
+  - { "type": "REPO", "repoName": "repo_name" }
+  - { "type": "WALLPAPER", "wallpaperUrl": "optional_url", "reasoning": "mood/keyword e.g. space, nature" }
+  - { "type": "SYSTEM", "action": { "type": "OPEN_APP", "payload": "appId" } }
+  - { "type": "ORCHESTRATE", "tasks": [ { "type": "JOBS", ... } ], "reasoning": "Plan summary" }
+  - { "type": "GENERAL" }`;
+  
+  for (const provider of PROVIDERS.slice(0, 3)) {
+     if (!provider.key) continue;
+     try {
+        const response = await fetch(provider.url, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${provider.key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: provider.model,
+            messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
+            stream: false,
+            response_format: { type: "json_object" }
+          }),
+        });
+        const data = await response.json();
+        const content = JSON.parse(data.choices[0]?.message?.content);
+        return content;
+     } catch (e) {}
+  }
+  return { type: 'GENERAL' };
+};
+
+export const askSequoia = async (prompt: string, onChunk: (text: string, status?: string, action?: SequoiaAction) => void) => {
+  let system = "You are Sequoia Intelligence, the proactive AI core of Node OS. You help professionals navigate jobs, code, and productivity. Keep your responses concise, professional, and slightly futuristic. Use high-impact English.";
+  
+  // 1. Initial Neural Classification
+  onChunk("", "SYNTHESIZING_INTENT");
+  const result = await classifyIntent(prompt);
+  
+  // 2. Prepare Execution Plan
+  const tasks = result.type === 'ORCHESTRATE' ? (result.tasks || []) : [result];
+  let liveContext = result.reasoning ? `\nORCHESTRATION PLAN: ${result.reasoning}\n` : "";
+  
+  // 3. Sequential Orchestration Loop
+  for (const task of tasks) {
+    if (task.type === 'JOBS') {
+       onChunk("", "INDEXING_JOB_MARKETS");
+       const jobs = await searchJobs(task.query || "Developer", task.location || "Remote");
+       liveContext += `\nLIVE JOB SEARCH (${task.query}):\n` + 
+          jobs.slice(0, 5).map(j => `- [JOB_ID:${j.id}] ${j.title} at ${j.company.display_name} (${j.location.display_name})`).join('\n');
+       
+       if (tasks.length === 1) {
+          onChunk("", "OPENING_OPPORTUNITY_INDEXER", { type: 'OPEN_APP', payload: 'search' });
+       }
+    } else if (task.type === 'REPO') {
+       onChunk("", "ANALYZING_VFS_REPOSITORIES");
+       liveContext += "\n" + await fetchGitHubRepo(task.repoName || "");
+    } else if (task.type === 'WALLPAPER') {
+       onChunk("", "ADAPTING_ENVIRONMENT_AESTHETICS");
+       // Determine the URL: Use provided, or look up by keyword, or default to modern
+       const keyword = task.reasoning?.toLowerCase() || 'modern';
+       const url = task.wallpaperUrl || AESTHETIC_NODES[keyword] || AESTHETIC_NODES.modern;
+       onChunk("", "EXECUTING_SYSTEM_OVERRIDE", { type: 'SET_WALLPAPER', payload: url });
+       liveContext += `\nWALLPAPER_UPDATED: Environment aesthetic adapted to ${keyword}. Node refreshed.`;
+    } else if (task.type === 'SYSTEM' && task.action) {
+       onChunk("", "EXECUTING_SYSTEM_OVERRIDE", task.action);
+       liveContext += `\nSYSTEM_ACTION_TRIGGERED: ${task.action.type} for ${JSON.stringify(task.action.payload)}. Status: Dispatched.`;
+    }
+  }
+
+  // 4. Content Synthesis
+  if (liveContext) {
+     system += `\nLATEST LIVE CONTEXT FROM SYSTEM TOOLS:\n${liveContext}\nIMPORTANT: Synthesize a professional response based on these results. Citations required.`;
+  }
+
+  // 5. Generation Stream
+  onChunk("", "SYNTHESIZING_FINAL_RESPONSE");
+  const hasAnyKey = PROVIDERS.some(p => !!p.key);
+  if (!hasAnyKey) {
+    const mock = liveContext ? `Synchronization complete. Based on the indexed volumes, I have identified several critical focal points: ${liveContext}` : "Node OS is idling at peak efficiency. No external context was required for this query.";
+    const words = mock.split(" ");
+    for (const w of words) {
+       onChunk(w + " ");
+       await new Promise(r => setTimeout(r, 40));
+    }
+    return;
+  }
+
+  for (const provider of PROVIDERS) {
+    if (!provider.key) continue;
+    try {
+      if (provider.type === "openai") {
+        await callOpenAICompatible(provider, system, prompt, (text) => onChunk(text));
+      } else if (provider.type === "google") {
+        await callGemini(provider, system, prompt, (text) => onChunk(text));
+      }
+      return;
+    } catch (e) {
+      console.warn(`Sequoia Engine: Provider ${provider.name} failed. Pivoting...`);
+    }
+  }
 };

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, X } from "lucide-react";
 import { useSystem } from "@/contexts/SystemContext";
 import { cn } from "@/lib/utils";
+import AppIcon from "./ui/AppIcon";
 
 interface LaunchpadProps {
   isOpen: boolean;
@@ -41,33 +42,31 @@ const Launchpad: React.FC<LaunchpadProps> = ({ isOpen, onClose }) => {
            value={searchQuery}
            onChange={e => setSearchQuery(e.target.value)}
            placeholder="Search Apps..."
-           className="w-full bg-white/10 border border-white/5 rounded-xl py-2 pl-12 pr-4 text-sm font-black text-white focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-white/20 transition-all uppercase tracking-widest"
+           className="w-full bg-white/10 border border-white/5 rounded-xl py-3 pl-12 pr-4 text-sm font-black text-white focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-white/20 transition-all uppercase tracking-widest bg-zinc-900/40 backdrop-blur-3xl shadow-2xl"
          />
       </div>
 
       {/* App Grid */}
       <div className="w-full max-w-5xl px-12 grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-12" onClick={e => e.stopPropagation()}>
          <AnimatePresence mode="popLayout">
-           {filteredApps.map((app, i) => (
-             <motion.button
-               key={app.id}
-               initial={{ opacity: 0, scale: 0.5 }}
-               animate={{ opacity: 1, scale: 1 }}
-               exit={{ opacity: 0, scale: 0.5 }}
-               transition={{ delay: i * 0.02, type: "spring", stiffness: 300, damping: 30 }}
-               onClick={() => handleLaunch(app)}
-               className="flex flex-col items-center gap-3 group outline-none"
-             >
-                <div className="relative">
-                   <div className="w-24 h-24 rounded-[28px] bg-white/5 border border-white/10 flex items-center justify-center shadow-xl group-hover:bg-primary group-hover:scale-110 group-active:scale-95 transition-all duration-300">
-                      <app.icon className="h-10 w-10 text-white drop-shadow-lg group-hover:scale-110 transition-transform" />
-                   </div>
-                   {/* App Badge Simulation */}
-                   <div className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 rounded-full border-2 border-black/50 text-[10px] font-black flex items-center justify-center text-white scale-0 group-hover:scale-100 transition-transform">1</div>
-                </div>
-                <span className="text-[11px] font-black uppercase tracking-widest text-white/80 group-hover:text-white group-hover:drop-shadow-lg transition-all">{app.name}</span>
-             </motion.button>
-           ))}
+            {filteredApps.map((app, i) => (
+              <motion.button
+                key={app.id}
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.5 }}
+                transition={{ delay: i * 0.02, type: "spring", stiffness: 300, damping: 30 }}
+                onClick={() => handleLaunch(app)}
+                className="flex flex-col items-center gap-4 group outline-none"
+              >
+                 <div className="relative group-hover:scale-110 transition-transform duration-500 pointer-events-none">
+                    <AppIcon icon={app.icon} category={app.category} size="xl" />
+                    {/* App Badge Simulation */}
+                    <div className="absolute -top-3 -right-3 w-8 h-8 bg-rose-500 rounded-full border-4 border-black/80 text-[11px] font-black flex items-center justify-center text-white scale-0 group-hover:scale-100 transition-transform shadow-2xl z-20">3</div>
+                 </div>
+                 <span className="text-[12px] font-black uppercase tracking-widest text-white/50 group-hover:text-white group-hover:drop-shadow-lg transition-all">{app.name}</span>
+              </motion.button>
+            ))}
          </AnimatePresence>
       </div>
 
