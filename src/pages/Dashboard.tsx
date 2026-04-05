@@ -15,7 +15,8 @@ import {
   Globe,
   Bell,
   ArrowUpRight,
-  TrendingUp
+  TrendingUp,
+  ChevronRight
 } from "lucide-react";
 import { useSystem } from "@/contexts/SystemContext";
 import { cn } from "@/lib/utils";
@@ -80,7 +81,7 @@ const Dashboard = () => {
             className="group relative"
           >
              <div className={cn("absolute inset-0 blur-3xl opacity-0 group-hover:opacity-20 transition-opacity", stat.glow)} />
-             <Card className="bg-white/[0.02] border border-white/5 rounded-[48px] p-10 hover:bg-white/[0.04] transition-all relative overflow-hidden shadow-3xl flex flex-col h-full active:scale-[0.98]">
+             <div className="bg-white/[0.02] border border-white/5 rounded-[48px] p-10 hover:bg-white/[0.04] transition-all relative overflow-hidden shadow-3xl flex flex-col h-full active:scale-[0.98]">
                 <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:opacity-10 transition-opacity pointer-events-none text-white"><stat.icon className="h-32 w-32" /></div>
                 
                 <div className="flex items-center justify-between mb-10 relative z-10">
@@ -97,7 +98,7 @@ const Dashboard = () => {
                    <p className="text-4xl font-black text-white/90 tracking-tighter tabular-nums">{stat.value}</p>
                    <p className="text-[9px] font-black text-zinc-700 uppercase tracking-[0.2em]">{stat.sub}</p>
                 </div>
-             </Card>
+             </div>
           </motion.div>
         ))}
       </div>

@@ -178,7 +178,7 @@ export const searchJobs = async (query: string, location: string, page: number =
   return results;
 };
 
-const callOpenAICompatible = async (provider: any, system: string, user: string, onChunk: (text: string) => void) => {
+const callOpenAICompatible = async (provider: any, messages: Array<{role: string; content: string}>, onChunk: (text: string) => void) => {
   const response = await fetch(provider.url, {
     method: "POST",
     headers: {
@@ -188,10 +188,7 @@ const callOpenAICompatible = async (provider: any, system: string, user: string,
     },
     body: JSON.stringify({
       model: provider.model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
+      messages,
       stream: true,
     }),
   });
@@ -209,7 +206,7 @@ const callOpenAICompatible = async (provider: any, system: string, user: string,
 
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
-    buffer = lines.pop() || ""; // Save the incomplete line for the next chunk
+    buffer = lines.pop() || "";
 
     for (const line of lines) {
       if (line.trim().startsWith("data: ")) {
@@ -219,9 +216,7 @@ const callOpenAICompatible = async (provider: any, system: string, user: string,
           const json = JSON.parse(data);
           const content = json.choices[0]?.delta?.content || "";
           if (content) onChunk(content);
-        } catch (e) {
-          // Keep processing if one line is malformed, but partials are now handled by the buffer
-        }
+        } catch (e) {}
       }
     }
   }
@@ -291,7 +286,7 @@ export const synthesizeNote = async (
     if (!provider.key) continue;
     try {
       if (provider.type === "openai") {
-        await callOpenAICompatible(provider, systemPrompt, content, (text) => onChunk(text));
+        await callOpenAICompatible(provider, [{role: "system", content: systemPrompt}, {role: "user", content: content}], (text) => onChunk(text));
       } else if (provider.type === "google") {
         await callGemini(provider, systemPrompt, content, (text) => onChunk(text));
       }
@@ -354,7 +349,7 @@ Proposed rate of ${hourlyRate || "$50/hr"} for this project.
     if (!provider.key) continue;
     try {
       if (provider.type === "openai") {
-        await callOpenAICompatible(provider, systemPrompt, userInput, (text) => onChunk(text, provider.name));
+        await callOpenAICompatible(provider, [{role: "system", content: systemPrompt}, {role: "user", content: userInput}], (text) => onChunk(text, provider.name));
       } else if (provider.type === "google") {
         await callGemini(provider, systemPrompt, userInput, (text) => onChunk(text, provider.name));
       }
@@ -561,10 +556,62 @@ export const classifyIntent = async (prompt: string): Promise<IntentResult> => {
   return { type: 'GENERAL' };
 };
 
-export const askSequoia = async (prompt: string, onChunk: (text: string, status?: string, action?: SequoiaAction) => void) => {
-  let system = "You are Sequoia Intelligence, the proactive AI core of Node OS. You help professionals navigate jobs, code, and productivity. Keep your responses concise, professional, and slightly futuristic. Use high-impact English.";
+export interface RAGContext {
+  conversationHistory?: Array<{role: "user" | "assistant"; content: string}>;
+  vfsFiles?: Array<{name: string; snippet: string}>;
+  openWindows?: string[];
+  systemState?: {
+    battery: number;
+    cpu: number;
+    ram: number;
+    wifi: boolean;
+    hostname: string;
+    wallpaper: string;
+    accentColor: string;
+  };
+}
+
+const buildSystemPrompt = (ragContext?: RAGContext): string => {
+  let prompt = `You are Sequoia, the intelligent assistant built into Node OS — a professional desktop environment. You are helpful, concise, and friendly.
+
+Your capabilities:
+- Open any application (Finder, Notes, Terminal, Navigator, Dashboard, Jobs, Portfolio, Settings, Calculator, Calendar, Clock, Music, Video)
+- Search for jobs and analyze them
+- Analyze GitHub repositories
+- Change the desktop wallpaper
+- Answer questions about the user's files and system state
+- Help with productivity tasks
+
+Rules:
+- Be concise. 2-3 sentences for simple queries, longer for complex analysis.
+- Use markdown formatting for structured responses.
+- When referring to system actions you performed, confirm what you did.
+- Be warm and professional, not robotic.`;
+
+  if (ragContext?.vfsFiles && ragContext.vfsFiles.length > 0) {
+    prompt += `\n\nUser's files in Documents:\n${ragContext.vfsFiles.map(f => `- ${f.name}: "${f.snippet}"`).join('\n')}`;
+  }
+
+  if (ragContext?.openWindows && ragContext.openWindows.length > 0) {
+    prompt += `\n\nCurrently open windows: ${ragContext.openWindows.join(', ')}`;
+  }
+
+  if (ragContext?.systemState) {
+    const s = ragContext.systemState;
+    prompt += `\n\nSystem state: Battery ${s.battery}%, CPU ${s.cpu}%, RAM ${s.ram}GB, WiFi ${s.wifi ? 'on' : 'off'}, Host: ${s.hostname}`;
+  }
+
+  return prompt;
+};
+
+export const askSequoia = async (
+  prompt: string, 
+  onChunk: (text: string, status?: string, action?: SequoiaAction) => void,
+  ragContext?: RAGContext
+) => {
+  let system = buildSystemPrompt(ragContext);
   
-  // 1. Initial Neural Classification
+  // 1. Intent Classification
   onChunk("", "SYNTHESIZING_INTENT");
   const result = await classifyIntent(prompt);
   
@@ -572,7 +619,7 @@ export const askSequoia = async (prompt: string, onChunk: (text: string, status?
   const tasks = result.type === 'ORCHESTRATE' ? (result.tasks || []) : [result];
   let liveContext = result.reasoning ? `\nORCHESTRATION PLAN: ${result.reasoning}\n` : "";
   
-  // 3. Sequential Orchestration Loop
+  // 3. Tool Execution Loop
   for (const task of tasks) {
     if (task.type === 'JOBS') {
        onChunk("", "INDEXING_JOB_MARKETS");
@@ -588,31 +635,41 @@ export const askSequoia = async (prompt: string, onChunk: (text: string, status?
        liveContext += "\n" + await fetchGitHubRepo(task.repoName || "");
     } else if (task.type === 'WALLPAPER') {
        onChunk("", "ADAPTING_ENVIRONMENT_AESTHETICS");
-       // Determine the URL: Use provided, or look up by keyword, or default to modern
        const keyword = task.reasoning?.toLowerCase() || 'modern';
        const url = task.wallpaperUrl || AESTHETIC_NODES[keyword] || AESTHETIC_NODES.modern;
        onChunk("", "EXECUTING_SYSTEM_OVERRIDE", { type: 'SET_WALLPAPER', payload: url });
-       liveContext += `\nWALLPAPER_UPDATED: Environment aesthetic adapted to ${keyword}. Node refreshed.`;
+       liveContext += `\nWALLPAPER_UPDATED: Desktop changed to ${keyword} theme.`;
     } else if (task.type === 'SYSTEM' && task.action) {
        onChunk("", "EXECUTING_SYSTEM_OVERRIDE", task.action);
-       liveContext += `\nSYSTEM_ACTION_TRIGGERED: ${task.action.type} for ${JSON.stringify(task.action.payload)}. Status: Dispatched.`;
+       liveContext += `\nSYSTEM_ACTION: ${task.action.type} → ${JSON.stringify(task.action.payload)}`;
     }
   }
 
-  // 4. Content Synthesis
+  // 4. Build context-enriched system prompt
   if (liveContext) {
-     system += `\nLATEST LIVE CONTEXT FROM SYSTEM TOOLS:\n${liveContext}\nIMPORTANT: Synthesize a professional response based on these results. Citations required.`;
+     system += `\n\nTool results from this query:\n${liveContext}\nUse these results to give a helpful answer.`;
   }
 
-  // 5. Generation Stream
+  // 5. Build message array with conversation history
+  const messages: Array<{role: string; content: string}> = [{role: "system", content: system}];
+  if (ragContext?.conversationHistory) {
+    for (const msg of ragContext.conversationHistory.slice(-8)) {
+      messages.push({role: msg.role, content: msg.content});
+    }
+  }
+  messages.push({role: "user", content: prompt});
+
+  // 6. Stream generation
   onChunk("", "SYNTHESIZING_FINAL_RESPONSE");
   const hasAnyKey = PROVIDERS.some(p => !!p.key);
   if (!hasAnyKey) {
-    const mock = liveContext ? `Synchronization complete. Based on the indexed volumes, I have identified several critical focal points: ${liveContext}` : "Node OS is idling at peak efficiency. No external context was required for this query.";
+    const mock = liveContext 
+      ? `Here's what I found:\n\n${liveContext}\n\nLet me know if you'd like me to dig deeper into any of these results.`
+      : "I'm ready to help! You can ask me to find jobs, open apps, change your wallpaper, or answer questions about your workspace. Try saying \"Find React developer jobs\" or \"Open Notes\".";
     const words = mock.split(" ");
     for (const w of words) {
        onChunk(w + " ");
-       await new Promise(r => setTimeout(r, 40));
+       await new Promise(r => setTimeout(r, 30));
     }
     return;
   }
@@ -621,7 +678,7 @@ export const askSequoia = async (prompt: string, onChunk: (text: string, status?
     if (!provider.key) continue;
     try {
       if (provider.type === "openai") {
-        await callOpenAICompatible(provider, system, prompt, (text) => onChunk(text));
+        await callOpenAICompatible(provider, messages, (text) => onChunk(text));
       } else if (provider.type === "google") {
         await callGemini(provider, system, prompt, (text) => onChunk(text));
       }

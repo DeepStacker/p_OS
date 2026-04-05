@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Command, FileText, Zap, ArrowRight, Folder } from "lucide-react";
+import { Search, Command, FileText, Zap, ArrowRight, Folder, Sparkles } from "lucide-react";
 import { useSystem, VFSNode, AppCategory } from "@/contexts/SystemContext";
 import { cn } from "@/lib/utils";
 import AppIcon from "./ui/AppIcon";
@@ -68,6 +68,23 @@ const Spotlight: React.FC<SpotlightProps> = ({ isOpen, onClose }) => {
       }
     };
     searchVFS(vfs, "");
+
+    // 3. Always offer "Ask Sequoia" as a fallback
+    if (q.length > 2) {
+      results.push({
+        id: "ask-sequoia",
+        type: "app",
+        name: `Ask Sequoia: "${query}"`,
+        icon: Sparkles,
+        category: "system",
+        action: () => {
+          onClose();
+          window.dispatchEvent(new CustomEvent("toggle-intelligence"));
+          // Small delay to let the assistant open, then we could trigger a query
+          // For now it just opens the assistant
+        }
+      });
+    }
 
     return results.slice(0, 8);
   };
