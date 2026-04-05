@@ -428,7 +428,7 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         )}
       </AnimatePresence>
 
-      {/* Power, Intel & Auth Layers */}
+      {/* Power & Intel Layers */}
       <IntelligenceAssistant />
       <PowerOverlay />
       <AnimatePresence>

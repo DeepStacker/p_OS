@@ -8,7 +8,7 @@ import {
   FolderOpen, 
   ChevronRight, 
   FileCode, 
-  Pinned, 
+  Pin, 
   Star, 
   Clock, 
   Search,
@@ -24,6 +24,8 @@ import {
 import { useSystem, VFSNode } from "@/contexts/SystemContext";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import NeuralRefinePane from "@/components/ui/NeuralRefinePane";
+import { Sparkles as SparklesIcon } from "lucide-react";
 
 const Notes = () => {
     const { vfs, updateVFS, addLog } = useSystem();
@@ -31,6 +33,7 @@ const Notes = () => {
     const [content, setContent] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isNeuralPaneOpen, setIsNeuralPaneOpen] = useState(false);
 
     // Dynamic Explorer Logic
     const allNotes = useMemo(() => {
@@ -170,9 +173,9 @@ const Notes = () => {
                                 <div className="flex flex-col">
                                     <h2 className="text-sm font-black tracking-tight flex items-center gap-2">
                                         {activeFile}
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b] animate-pulse" />
                                     </h2>
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Synthesizing Persistent Buffer...</span>
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Neural Sync Active...</span>
                                 </div>
                             </div>
                         )}
@@ -181,6 +184,14 @@ const Notes = () => {
                     <div className="flex items-center gap-3">
                         {activeFile && (
                             <>
+                                <button 
+                                    onClick={() => setIsNeuralPaneOpen(true)}
+                                    className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-amber-500 flex items-center gap-2 text-[9px] font-black uppercase tracking-widest transition-all group overflow-hidden relative shadow-2xl"
+                                >
+                                    <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity blur-xl" />
+                                    <SparklesIcon className="h-3.5 w-3.5 animate-pulse" /> Neural Refine
+                                </button>
+                                <div className="h-4 w-px bg-white/10 mx-2" />
                                 <button onClick={deleteActiveNote} className="p-2 text-rose-500/40 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"><Trash2 className="h-4 w-4" /></button>
                                 <button className="p-2 text-zinc-500 hover:text-white hover:bg-white/5 rounded-xl transition-all"><Share2 className="h-4 w-4" /></button>
                                 <div className="h-4 w-px bg-white/10 mx-2" />
@@ -188,14 +199,25 @@ const Notes = () => {
                                     onClick={handleSave}
                                     className="flex items-center gap-3 px-6 py-2.5 bg-amber-500 text-black rounded-xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-amber-500/20"
                                 >
-                                    <Save className="h-3.5 w-3.5" /> Sync Node
+                                    <Save className="h-3.5 w-3.5" /> Sync Buffer
                                 </button>
                             </>
                         )}
                     </div>
                 </header>
 
-                <div className="flex-1 flex overflow-hidden">
+                <div className="flex-1 flex overflow-hidden relative">
+                    <AnimatePresence>
+                        {isNeuralPaneOpen && (
+                            <NeuralRefinePane 
+                                isOpen={isNeuralPaneOpen} 
+                                onClose={() => setIsNeuralPaneOpen(false)} 
+                                content={content}
+                                onApply={(refined) => { setContent(refined); setIsNeuralPaneOpen(false); addLog("Buffer synthesized with Sequoia core.", "success"); }}
+                            />
+                        )}
+                    </AnimatePresence>
+
                     {activeFile ? (
                         <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 divide-x divide-white/5">
                             {/* Editor Pane */}
@@ -205,6 +227,11 @@ const Notes = () => {
                                    <button className="px-3 py-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-all"><Type className="h-3 w-3" /></button>
                                    <button className="px-3 py-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-all"><ListIcon className="h-3 w-3" /></button>
                                    <button className="px-3 py-1.5 rounded-lg hover:bg-white/5 text-zinc-500 hover:text-white transition-all"><ImageIcon className="h-3 w-3" /></button>
+                                   <div className="flex-1" />
+                                   <div className="flex items-center gap-2 pr-2">
+                                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-ping" />
+                                        <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest">Neural Draft Validated</span>
+                                   </div>
                                 </div>
                                 <textarea
                                     value={content}
