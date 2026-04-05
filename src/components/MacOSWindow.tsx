@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useDragControls } from "framer-motion";
 import { X, Minus, Maximize2, Layout, Columns, LayoutPanelTop } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSystem, WindowState, SnapType } from "@/contexts/SystemContext";
@@ -15,8 +15,7 @@ const MacOSWindow: React.FC<MacOSWindowProps> = ({
 }) => {
   const { closeWindow, minimizeWindow, maximizeWindow, focusWindow, snapWindow, updateWindowPosition } = useSystem();
   const [showSnapMenu, setShowSnapMenu] = useState(false);
-
-  if (window.isMinimized) return null;
+  const dragControls = useDragControls();
 
   const getSnapStyles = (type: SnapType) => {
     switch (type) {
@@ -56,8 +55,8 @@ const MacOSWindow: React.FC<MacOSWindowProps> = ({
         return {
           width: window.width || "800px",
           height: window.height || "550px",
-          x: window.x !== undefined ? window.x : undefined, 
-          y: window.y !== undefined ? window.y : 0,
+          x: window.x !== undefined ? window.x : 100, 
+          y: window.y !== undefined ? window.y : 100,
           borderRadius: "14px"
         };
     }
@@ -67,13 +66,18 @@ const MacOSWindow: React.FC<MacOSWindowProps> = ({
 
   const handleDragEnd = (event: any, info: any) => {
     if (window.snapType === "none") {
-       updateWindowPosition(window.id, info.point.x, info.point.y);
+       // Since we are using transforms for everything now, we just update the state
+       const newX = (window.x || 0) + info.offset.x;
+       const newY = (window.y || 0) + info.offset.y;
+       updateWindowPosition(window.id, newX, newY);
     }
   };
 
   return (
     <motion.div
       drag={window.snapType === "none" && !window.isMaximized}
+      dragControls={dragControls}
+      dragListener={false}
       dragMomentum={false}
       dragElastic={0}
       dragConstraints={{ left: 0, right: 1200, top: 0, bottom: 800 }}
@@ -87,8 +91,14 @@ const MacOSWindow: React.FC<MacOSWindowProps> = ({
         ...snapStyles,
         zIndex: window.zIndex
       }}
-      exit={{ opacity: 0, scale: 0.9, y: 20 }}
-      transition={{ type: "spring", damping: 25, stiffness: 400 }}
+      exit={{ 
+        opacity: 0, 
+        scale: 0, 
+        y: 600, // Genie accelerate to dock
+        filter: "blur(20px)",
+        transition: { duration: 0.5, ease: [0.32, 0, 0.67, 0] }
+      }}
+      transition={{ type: "spring", damping: 30, stiffness: 350 }}
       className={cn(
         "absolute flex flex-col overflow-hidden shadow-2xl backdrop-blur-3xl border border-white/10 group pointer-events-auto",
         window.snapType !== "none" ? "shadow-none" : "min-w-[600px] min-h-[400px]"
@@ -102,6 +112,7 @@ const MacOSWindow: React.FC<MacOSWindowProps> = ({
       }}
     >
       <div 
+        onPointerDown={(e) => dragControls.start(e)}
         className={cn(
           "h-10 flex items-center px-4 bg-zinc-900/30 border-b border-white/5 shrink-0 select-none cursor-default",
           window.snapType === "none" && !window.isMaximized && "cursor-grab active:cursor-grabbing"
@@ -139,7 +150,7 @@ const MacOSWindow: React.FC<MacOSWindowProps> = ({
             </AnimatePresence>
           </div>
         </div>
-        <div className="flex-1 flex items-center justify-center gap-2 opacity-100 pr-20">
+        <div className="flex-1 flex items-center justify-center gap-2 opacity-100 pr-20" onPointerDown={(e) => dragControls.start(e)}>
           <div className="opacity-40">{window.icon}</div>
           <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/50">{window.title}</span>
         </div>

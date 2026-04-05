@@ -23,6 +23,7 @@ export interface AppConfig {
 type AccentColor = "blue" | "purple" | "pink" | "red" | "orange" | "yellow" | "green" | "gray";
 type SubscriptionTier = "Standard" | "Professional" | "Enterprise";
 export type SnapType = "none" | "full" | "left" | "right" | "center";
+export type PowerStatus = "running" | "sleep" | "shutdown" | "restart" | "locked";
 
 // --- Window Manager Types ---
 export interface WindowState {
@@ -78,6 +79,11 @@ interface SystemContextType {
   batteryLevel: number;
   isCharging: boolean;
   setIsCharging: (charging: boolean) => void;
+  powerStatus: PowerStatus;
+  setPowerStatus: (status: PowerStatus) => void;
+  localPasscode: string | null;
+  setLocalPasscode: (passcode: string | null) => void;
+  triggerPowerAction: (action: "restart" | "shutdown") => void;
 
   // Window Manager
   activeWindows: WindowState[];
@@ -157,11 +163,11 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     { id: "terminal", name: "Terminal", icon: Terminal, component: "terminal" },
     { id: "search", name: "Jobs", icon: Briefcase, component: "search" },
     { id: "portfolio", name: "Code", icon: Folder, component: "portfolio" },
-    { id: "calculator", name: "Calc", icon: CreditCard, component: "calculator" },
+    { id: "calculator", name: "Calculator", icon: CreditCard, component: "calculator" },
     { id: "calendar", name: "Calendar", icon: ClockIcon, component: "calendar" },
     { id: "clock", name: "Clock", icon: AppWindow, component: "clock" },
     { id: "notes", name: "Notes", icon: FileText, component: "notes" },
-    { id: "settings", name: "Setup", icon: SettingsIcon, component: "settings" },
+    { id: "settings", name: "Settings", icon: SettingsIcon, component: "settings" },
   ];
 
   // Appearance & Identity
@@ -176,6 +182,8 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isBluetoothEnabled, setIsBluetoothEnabled] = useState(true);
   const [batteryLevel, setBatteryLevel] = useState(98);
   const [isCharging, setIsCharging] = useState(false);
+  const [powerStatus, setPowerStatus] = useState<PowerStatus>("running");
+  const [localPasscode, setLocalPasscode] = useState<string | null>(() => localStorage.getItem("system_passcode"));
 
   // Window Manager State (With Re-hydration)
   const [activeWindows, setActiveWindows] = useState<WindowState[]>(() => {
@@ -266,6 +274,13 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveWindows(prev => prev.map(w => w.id === id ? { ...w, x, y } : w));
   };
 
+  const triggerPowerAction = (action: "restart" | "shutdown") => {
+    setActiveWindows([]);
+    localStorage.removeItem("system_windows_layout");
+    setPowerStatus(action);
+    addLog(`System action: ${action}`, "warning");
+  };
+
   const updateVFS = (newNode: VFSNode) => {
     setVfs(newNode);
     localStorage.setItem("system_vfs", JSON.stringify(newNode));
@@ -288,7 +303,12 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem("system_tier", subscriptionTier);
     localStorage.setItem("system_wallpaper", wallpaper);
     localStorage.setItem("system_hostname", hostname);
-  }, [accentColor, showDesktopIcons, subscriptionTier, wallpaper, hostname]);
+    if (localPasscode) {
+      localStorage.setItem("system_passcode", localPasscode);
+    } else {
+      localStorage.removeItem("system_passcode");
+    }
+  }, [accentColor, showDesktopIcons, subscriptionTier, wallpaper, hostname, localPasscode]);
 
   // Window Layout Persistence
   useEffect(() => {
@@ -337,6 +357,9 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       isWifiEnabled, setIsWifiEnabled,
       isBluetoothEnabled, setIsBluetoothEnabled,
       batteryLevel, isCharging, setIsCharging,
+      powerStatus, setPowerStatus,
+      localPasscode, setLocalPasscode,
+      triggerPowerAction,
       activeWindows, openWindow, closeWindow, minimizeWindow, focusWindow, maximizeWindow, snapWindow, updateWindowPosition,
       vfs, updateVFS,
       metrics, logs, addLog,

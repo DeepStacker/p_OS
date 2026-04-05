@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   AppWindow, 
   LayoutDashboard, 
@@ -33,10 +34,13 @@ import { useSystem } from "@/contexts/SystemContext";
 import MacOSWindow from "./MacOSWindow";
 import Spotlight from "./Spotlight";
 import Launchpad from "./Launchpad";
+import MissionControl from "./MissionControl";
+import PowerOverlay from "./PowerOverlay";
+import Auth from "@/pages/Auth";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Proposals = lazy(() => import("@/pages/Proposals"));
-const Admin = lazy(() => import("@/pages/Admin"));
+const TerminalApp = lazy(() => import("@/components/apps/Terminal"));
 const Jobs = lazy(() => import("@/pages/Jobs"));
 const Portfolio = lazy(() => import("@/pages/Portfolio"));
 const Settings = lazy(() => import("@/pages/Settings"));
@@ -64,14 +68,20 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     addLog,
     dockApps,
     metrics,
-    snapWindow // Correctly extracted
+    snapWindow,
+    powerStatus,
+    setPowerStatus,
+    triggerPowerAction
   } = useSystem();
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showControlCenter, setShowControlCenter] = useState(false);
   const [showAppleMenu, setShowAppleMenu] = useState(false);
   const [isSpotlightOpen, setIsSpotlightOpen] = useState(false);
   const [isLaunchpadOpen, setIsLaunchpadOpen] = useState(false);
+  const [isMissionControlOpen, setIsMissionControlOpen] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -84,9 +94,25 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         e.preventDefault();
         setIsSpotlightOpen(prev => !prev);
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        setPowerStatus("locked");
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // --- Mission Control Listener (F3) ---
+  useEffect(() => {
+    const handleMissionControl = (e: KeyboardEvent) => {
+      if (e.key === "F3" || (e.ctrlKey && e.key === "ArrowUp")) {
+        e.preventDefault();
+        setIsMissionControlOpen(prev => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleMissionControl);
+    return () => window.removeEventListener("keydown", handleMissionControl);
   }, []);
 
   // --- Window Snapping Shortcuts (Option + Arrows) ---
@@ -128,13 +154,13 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     if (app) openWindow(app.id, app.name, app.icon, app.component);
   }, [location.pathname]);
 
-  if (["/auth", "/welcome"].includes(location.pathname)) return <div className="min-h-screen bg-black">{children}</div>;
+  if (["/auth", "/welcome"].includes(location.pathname) && powerStatus === 'running') return <div className="min-h-screen bg-black relative">{children}</div>;
 
   const renderAppComponent = (componentId: string) => {
     switch (componentId) {
       case "dashboard": return <Dashboard />;
       case "proposals": return <Proposals />;
-      case "terminal": return <Admin />;
+      case "terminal": return <TerminalApp />;
       case "search": return <Jobs />;
       case "portfolio": return <Portfolio />;
       case "settings": return <Settings />;
@@ -180,7 +206,7 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
       <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden pt-8">
         <AnimatePresence>
-          {activeWindows.map((win) => (
+          {activeWindows.filter(w => !w.isMinimized).map((win) => (
             <MacOSWindow key={win.id} window={win}>
               <Suspense fallback={<div className="flex items-center justify-center h-full"><Zap className="h-8 w-8 animate-pulse text-primary opacity-20" /></div>}>{renderAppComponent(win.component)}</Suspense>
             </MacOSWindow>
@@ -196,11 +222,16 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <AnimatePresence>
             {showAppleMenu && (
               <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} className="absolute top-8 left-0 w-56 bg-zinc-900/60 backdrop-blur-3xl border border-white/10 rounded-xl shadow-2xl p-1.5 z-[101]">
-                {["About This Mac", "Software Update", "System Settings..."].map(item => (
-                   <button key={item} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">{item}</button>
-                ))}
+                <button className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">About This Mac</button>
+                <button className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Software Update...</button>
+                <button className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">System Settings...</button>
                 <div className="h-px bg-white/5 my-1" />
-                <button className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/20 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Shut Down...</button>
+                <button onClick={() => { setPowerStatus("sleep"); setShowAppleMenu(false); }} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Sleep</button>
+                <button onClick={() => { triggerPowerAction("restart"); setShowAppleMenu(false); }} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Restart...</button>
+                <button onClick={() => { triggerPowerAction("shutdown"); setShowAppleMenu(false); }} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Shut Down...</button>
+                <div className="h-px bg-white/5 my-1" />
+                <button onClick={() => { setPowerStatus("locked"); setShowAppleMenu(false); }} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Lock Screen</button>
+                <button onClick={() => { signOut(); setShowAppleMenu(false); navigate("/auth"); }} className="w-full text-left px-3 py-1.5 text-[11px] font-bold text-white/80 hover:bg-primary/80 hover:text-white rounded-md transition-colors">Log Out node...</button>
               </motion.div>
             )}
           </AnimatePresence>
@@ -278,6 +309,30 @@ const MacOSLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
       <AnimatePresence>{isLaunchpadOpen && <Launchpad isOpen={isLaunchpadOpen} onClose={() => setIsLaunchpadOpen(false)} />}</AnimatePresence>
       <AnimatePresence>{isSpotlightOpen && <Spotlight isOpen={isSpotlightOpen} onClose={() => setIsSpotlightOpen(false)} />}</AnimatePresence>
+      <AnimatePresence>
+        {isMissionControlOpen && (
+          <MissionControl 
+            isOpen={isMissionControlOpen} 
+            onClose={() => setIsMissionControlOpen(false)} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Power & Auth Layers */}
+      <PowerOverlay />
+      <AnimatePresence>
+        {powerStatus === "locked" && (
+           <motion.div
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+             className="absolute inset-0 z-[2000] bg-black/60 backdrop-blur-2xl"
+           >
+              <Auth />
+              {/* Specialized Auth variant could be here, but current Auth works as a standalone lock screen */}
+           </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

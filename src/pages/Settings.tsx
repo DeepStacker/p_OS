@@ -46,7 +46,9 @@ const Settings = () => {
     wallpaper,
     setWallpaper,
     hostname,
-    setHostname
+    setHostname,
+    localPasscode,
+    setLocalPasscode
   } = useSystem();
 
   const [activeTab, setActiveTab] = useState("appearance");
@@ -78,6 +80,7 @@ const Settings = () => {
     { id: "identity", label: "System Identity", icon: User },
     { id: "battery", label: "Battery", icon: Battery },
     { id: "storage", label: "Storage", icon: Database },
+    { id: "security", label: "Security", icon: Shield },
     { id: "about", label: "About", icon: Info },
   ];
 
@@ -260,6 +263,54 @@ const Settings = () => {
                          </div>
                       </div>
                    </div>
+                )}
+
+                {activeTab === "security" && (
+                  <div className="max-w-2xl space-y-12">
+                     <h2 className="text-3xl font-black text-white/90 tracking-tighter">Security & Privacy</h2>
+                     <div className="p-10 rounded-[40px] bg-white/5 border border-white/10 space-y-10 shadow-3xl">
+                        <div className="flex flex-col items-center gap-6 text-center">
+                           <div className="w-20 h-20 rounded-[28px] bg-primary/10 flex items-center justify-center border border-primary/20 shadow-2xl">
+                              <Lock className="h-10 w-10 text-primary" />
+                           </div>
+                           <div className="space-y-2">
+                              <h3 className="text-xl font-black text-white uppercase tracking-tight">System Passcode</h3>
+                              <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest max-w-xs">Set a local passcode for rapid unlocking from sleep or lock state without requiring Google sign-in.</p>
+                           </div>
+                        </div>
+
+                        <div className="space-y-4">
+                           <div className="flex items-center gap-4 bg-black/40 p-5 rounded-2xl border border-white/10 transition-all focus-within:border-primary/40 group">
+                              <Shield className="h-5 w-5 text-zinc-500 group-focus-within:text-primary transition-colors" />
+                              <input 
+                                 type="password"
+                                 placeholder="ENTER NEW PASSCODE"
+                                 className="bg-transparent border-none w-full text-sm font-black text-white tracking-[0.5em] focus:outline-none placeholder:tracking-widest placeholder:opacity-20"
+                                 value={localPasscode || ""}
+                                 onChange={(e) => setLocalPasscode(e.target.value)}
+                              />
+                           </div>
+                           {localPasscode && (
+                              <button 
+                                 onClick={() => setLocalPasscode(null)}
+                                 className="w-full py-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-[9px] font-black uppercase tracking-[0.2em] transition-all"
+                              >
+                                 Clear System Passcode
+                              </button>
+                           )}
+                        </div>
+
+                        <div className="pt-6 border-t border-white/5 flex items-center justify-between">
+                           <div className="flex flex-col">
+                              <span className="text-[11px] font-black text-white uppercase">Fast User Switching</span>
+                              <span className="text-[9px] font-bold text-zinc-500 uppercase">Enable rapid passcode entry on wake</span>
+                           </div>
+                           <div className={cn("w-12 h-6 rounded-full p-1 bg-primary/20 relative shadow-inner cursor-pointer")}>
+                              <div className="w-4 h-4 bg-primary rounded-full translate-x-6" />
+                           </div>
+                        </div>
+                     </div>
+                  </div>
                 )}
 
                 {activeTab === "about" && (

@@ -10,7 +10,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Proposals from "./pages/Proposals";
 import Portfolio from "./pages/Portfolio";
-import Admin from "./pages/Admin";
+import Admin from "./components/apps/Terminal";
 import Jobs from "./pages/Jobs";
 import Pricing from "./pages/Pricing";
 import Settings from "./pages/Settings";
